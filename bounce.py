@@ -13,6 +13,7 @@ mistake = 0
 Tmistake = 0
 mistakeW = 0
 flag = -1
+counter = 0
 
 def normalKE(v):
     return 0.5 * 40 * amu * v * 100 * v * 100 * e0inv
@@ -36,6 +37,7 @@ def State(nke,pke,pot):
 
 # nb, tm, s1, t1, E_xy.i, E_z.i, V.i, s2, t2, E_xy.f, E_z.f, V.f, refl_flag
 def Countbounces(Vz, Epar, Enorm, Epot, Bnc):
+    global counter
     l = Vz.size - 1
     nb = 0
     t1 = t2 = tm = 0
@@ -71,6 +73,13 @@ def Countbounces(Vz, Epar, Enorm, Epot, Bnc):
             tm = int(0.5*(t2+t1))
             s1 = State(Enorm[t1], Epar[t1], Epot[t1])
             s2 = State(Enorm[t2], Epar[t2], Epot[t2])
+
+            if nb > 0:
+                if s1 == 1 and s2 != 1:
+                    counter += 1
+                    print('Miscounted state. Getting rid of trajectory information. ' + str(counter))
+                    Bnc[:,nb] = -9999, -100, -100, -100, -3000, -3000, -3000, -100, -100, -3000, -3000, -3000, -9999
+                    return -9999
             # nb, tm, s1, t1, E_xy.i, E_z.i, V.i, s2, t2, E_xy.f, E_z.f, V.f, refl_flag (s2 == 1 == C functions as flag)
             Bnc[:,nb] = nb, tm, s1, t1, Epar[t1], Enorm[t1], Epot[t1], s2, t2, Epar[t2], Enorm[t2], Epot[t2], s2
             nb += 1
@@ -86,12 +95,7 @@ def Population(nb, bnc1, bnc2, State, Trans, Refl, scale, traj):
     global flag
     l = len(State[2]) - 1
     assert(bnc2[0] > bnc1[0])
-    if int(bnc1[7]) != int(bnc2[2]) and bnc2[1] <= 1199:
-        dummyvariable = 1
-        #print('check',str(traj), str(nb), str(int(bnc1[7]) - int(bnc2[2])), str(bnc1[1]))
-    #assert(bnc2[1] > bnc1[1])
-    #if bnc1[7] != bnc2[2]:
-        #print("State description not consistent in ", str(traj), str(nb))
+
     if nb == 0:
         for i in range(0, int(bnc1[1])):
             State[2,i] += 1. * scale
@@ -100,7 +104,7 @@ def Population(nb, bnc1, bnc2, State, Trans, Refl, scale, traj):
 # therefore we fill the population of C states from the last bounce
 # till the end
     if int(bnc1[7]) == 1:# and flag != traj:
-        State[2, int(bnc1[1]):len(State[2])] += 1
+        State[2, int(bnc1[1]):len(State[2])] += 1 * scale
         #State[2, int(bnc1[1]):int(bnc2[1])] += 1
 
         if int(bnc1[2]) == -1 and int(bnc1[7]) == 1: #T->C
@@ -129,6 +133,7 @@ def Population(nb, bnc1, bnc2, State, Trans, Refl, scale, traj):
                 print("Particle returned to T state.")
                 print('traj: ', str(traj), 'nb: ', str(nb), 'err: ', str(mistake))
                 #State[2, int(bnc1[1]):len(State[2])] += 1 * scale
+                Trans[4, int(bnc1[1])+1:len(State[0])] -= 1 * scale
                 return -6000
 
             Trans[4, int(bnc1[1]):len(State[0])] += 1 * scale
@@ -136,7 +141,7 @@ def Population(nb, bnc1, bnc2, State, Trans, Refl, scale, traj):
         elif int(bnc1[2]) == 0 and int(bnc1[7]) == -1: #Q->T
             Trans[2, int(bnc1[1]):len(State[0])] += 1. * scale
 
-        State[0, int(bnc1[1]):int(bnc2[1])] += 1
+        State[0, int(bnc1[1]):int(bnc2[1])] += 1 * scale
 
     elif int(bnc1[7]) == 0:# and flag != traj:
 
@@ -146,6 +151,7 @@ def Population(nb, bnc1, bnc2, State, Trans, Refl, scale, traj):
                 print("Particle returned to Q state.")
                 print('traj: ', str(traj), 'nb: ', str(nb), 'err: ', str(mistake))
                 #State[2, int(bnc1[1]):len(State[2])] += 1 * scale
+                Trans[5, int(bnc1[1])+1:len(State[0])] -= 1 * scale
                 return -5000
 
             Trans[5, int(bnc1[1]):len(State[0])] += 1 * scale
@@ -153,20 +159,10 @@ def Population(nb, bnc1, bnc2, State, Trans, Refl, scale, traj):
         elif int(bnc1[2]) == -1 and int(bnc1[7]) == 0: #T->Q
             Trans[0, int(bnc1[1]):len(State[1])] += 1. * scale
 
-        State[1, int(bnc1[1]):int(bnc2[1])] += 1
-    '''
-    if int(bnc1[7]) != int(bnc2[2]):
-        mistakeW += 1
-        print("warning! Diff of States = ", str(bnc1[7] - bnc2[2]))
-        print('traj: ', str(traj), 'nb: ', str(nb), 'err: ', str(mistakeW))
-        '''
-    #if State[a,i]
+        State[1, int(bnc1[1]):int(bnc2[1])] += 1 * scale
 
-    #elif int(bnc1[7]) == 1:
-    #    print('an error occurred, check bounce.py')
-    #    for i in range(int(bnc1[1]), int(bnc2[1])):
-    #        State[2,i] += 1 * scale
     return flag
+
 
 # nb, tm, s1, t1, E_xy.i, E_z.i, V.i, s2, t2, E_xy.f, E_z.f, V.f, refl_flag
 def Evalbounce(nb, Bnc, Epar, Enorm, Epot):
