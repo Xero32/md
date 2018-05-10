@@ -15,7 +15,7 @@ def GaussSmoothing(N, t, f, dt=1, nu=4, edge='none', X=[]):
             continue
         if edge == 'positive' or edge == 'pos':
             if X[j] <= 5.*h:                                        #TODO maybe t <= 0
-                if X[t] <= 0:
+                if X[t] < 0:
                     fG = 0
                     return fG
                 else:
@@ -25,7 +25,7 @@ def GaussSmoothing(N, t, f, dt=1, nu=4, edge='none', X=[]):
                 GaussSum += Gauss(t, j, h)   # j = time
         elif edge == 'negative' or edge == 'neg':
             if X[j] >= -5.*h:
-                if X[t] >= 0:                                       #TODO maybe t >= 0
+                if X[t] > 0:                                       #TODO maybe t >= 0
                     fG = 0
                     return fG
                 else:
@@ -46,7 +46,7 @@ def GaussSmoothing(N, t, f, dt=1, nu=4, edge='none', X=[]):
             continue
         if edge == 'positive' or edge == 'pos':
             if X[j] <= 5.0*h:
-                if X[t] <= 0:                                       #TODO maybe t <= 0
+                if X[t] < 0:                                       #TODO maybe t <= 0
                     fG = 0
                     return fG
                     continue
@@ -58,7 +58,7 @@ def GaussSmoothing(N, t, f, dt=1, nu=4, edge='none', X=[]):
             #end if (edge gaussians)
         elif edge =='negative' or edge == 'neg':
             if X[j] >= -5.0*h:
-                if X[t] >= 0:                                       #TODO maybe t >= 0
+                if X[t] > 0:                                       #TODO maybe t >= 0
                     fG = 0
                     return fG
                     continue

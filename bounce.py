@@ -1,4 +1,5 @@
 import numpy as np
+import math
 from stats import median
 
 # TODO
@@ -36,7 +37,7 @@ def State(nke,pke,pot):
             return -1
 
 # nb, tm, s1, t1, E_xy.i, E_z.i, V.i, s2, t2, E_xy.f, E_z.f, V.f, refl_flag
-def Countbounces(Vz, Epar, Enorm, Epot, Bnc):
+def Countbounces(Vz, Epar, Enorm, Epot, Bnc, current):
     global counter
     l = Vz.size - 1
     nb = 0
@@ -73,11 +74,11 @@ def Countbounces(Vz, Epar, Enorm, Epot, Bnc):
             tm = int(0.5*(t2+t1))
             s1 = State(Enorm[t1], Epar[t1], Epot[t1])
             s2 = State(Enorm[t2], Epar[t2], Epot[t2])
-
+            #print(str(t1), str(t2))
             if nb > 0:
                 if s1 == 1 and s2 != 1:
                     counter += 1
-                    print('Miscounted state. Getting rid of trajectory information. ' + str(counter))
+                    print('Miscounted state. Getting rid of trajectory information. ' + str(current) + ' ' + str(counter))
                     Bnc[:,nb] = -9999, -100, -100, -100, -3000, -3000, -3000, -100, -100, -3000, -3000, -3000, -9999
                     return -9999
             # nb, tm, s1, t1, E_xy.i, E_z.i, V.i, s2, t2, E_xy.f, E_z.f, V.f, refl_flag (s2 == 1 == C functions as flag)
@@ -88,7 +89,7 @@ def Countbounces(Vz, Epar, Enorm, Epot, Bnc):
     return nb
 
 #State: T, Q, C; Trans: QT, CT, TQ, CQ
-def Population(nb, bnc1, bnc2, State, Trans, Refl, scale, traj):
+def Population(nb, bnc0, bnc1, bnc2, State, Trans, Refl, scale, traj):
     global mistake
     global Tmistake
     global mistakeW
@@ -96,70 +97,85 @@ def Population(nb, bnc1, bnc2, State, Trans, Refl, scale, traj):
     l = len(State[2]) - 1
     assert(bnc2[0] > bnc1[0])
 
+
+    if bnc1[7] != bnc2[2]:
+        dummy = 1
+        #print(str(traj), str(nb))
+        #print('Error!')
+
     if nb == 0:
         for i in range(0, int(bnc1[1])):
             State[2,i] += 1. * scale
+
+        if int(bnc1[7]) == 1:
+            State[2, int(bnc1[1]):len(State[2])] += 1 * scale
+            Refl[int(bnc1[1]):len(State[2])] += 1 * scale
+            return -3000
+        elif int(bnc1[7]) == 0:
+            State[1, int(bnc1[1]):int(bnc2[1])] += 1 * scale
+            Trans[5, int(bnc1[1]):len(State[1])] += 1 * scale
+        elif int(bnc1[7]) == -1:
+            State[0, int(bnc1[1]):int(bnc2[1])] += 1 * scale
+            Trans[4, int(bnc1[1]):len(State[2])] += 1 * scale
 # when particle is in C state, it will not come back to
 # any kind of bound state
 # therefore we fill the population of C states from the last bounce
 # till the end
-    if int(bnc1[7]) == 1:# and flag != traj:
-        State[2, int(bnc1[1]):len(State[2])] += 1 * scale
-        #State[2, int(bnc1[1]):int(bnc2[1])] += 1
+    else:
+        if int(bnc1[7]) == 1:# and flag != traj:
+            State[2, int(bnc1[1]):len(State[2])] += 1 * scale
+            #State[2, int(bnc1[1]):int(bnc2[1])] += 1
 
-        if int(bnc1[2]) == -1 and int(bnc1[7]) == 1: #T->C
-            Trans[1, int(bnc1[1]):len(State[2])] += 1 * scale
+            if int(bnc0[7]) == -1 and int(bnc1[7]) == 1: #T->C
+                Trans[1, int(bnc1[1]):len(State[2])] += 1 * scale
 
-        elif int(bnc1[2]) == 0 and int(bnc1[7]) == 1: #Q->C
-            Trans[3, int(bnc1[1]):len(State[2])] += 1. * scale
+            elif int(bnc0[7]) == 0 and int(bnc1[7]) == 1: #Q->C
+                Trans[3, int(bnc1[1]):len(State[2])] += 1. * scale
 
-        elif int(bnc1[2]) == 1 and int(bnc1[7]) == 1: # direct reflection
-            Refl[int(bnc1[1]):len(State[2])] += 1. * scale
+            elif int(bnc0[7]) == 1 and int(bnc1[7]) == 1: # direct reflection
+                print('supposed direct reflection at later bounce', str(nb), str(traj))
+                Refl[int(bnc1[1]):len(State[2])] += 1. * scale
 
-        #bnc2[:] = 0,0,0,0,0,0,0,0,0,0,0,0,0
-        bnc2[:] = nb, l+1, 1, l+1, -3000, -3000, -3000, 1, l+1, -3000, -3000, -3000, 1
-        return -3000
-        #flag = traj
-        #return flag
+            bnc2[:] = nb, l+1, 1, l+1, -3000, -3000, -3000, 1, l+1, -3000, -3000, -3000, 1
+            return -3000
+            #end if
         #end if
-        #return 1
-    #end if
 
-    elif int(bnc1[7]) == -1:# and flag != traj:
+        elif int(bnc1[7]) == -1:# and flag != traj:
 
-        if int(bnc1[2]) == 1 and int(bnc1[7]) == -1: #C->T
-            if nb > 0:
-                mistake += 1
-                print("Particle returned to T state.")
-                print('traj: ', str(traj), 'nb: ', str(nb), 'err: ', str(mistake))
-                #State[2, int(bnc1[1]):len(State[2])] += 1 * scale
-                Trans[4, int(bnc1[1])+1:len(State[0])] -= 1 * scale
-                return -6000
+            if int(bnc1[2]) == 1 and int(bnc1[7]) == -1: #C->T
+                if nb > 0:
+                    mistake += 1
+                    print("Particle returned to T state.")
+                    print('traj: ', str(traj), 'nb: ', str(nb), 'err: ', str(mistake))
+                    #State[2, int(bnc1[1]):len(State[2])] += 1 * scale
+                    Trans[4, int(bnc1[1])+1:len(State[0])] -= 1 * scale
+                    return -6000
 
-            Trans[4, int(bnc1[1]):len(State[0])] += 1 * scale
+                Trans[4, int(bnc1[1]):len(State[0])] += 1 * scale
 
-        elif int(bnc1[2]) == 0 and int(bnc1[7]) == -1: #Q->T
-            Trans[2, int(bnc1[1]):len(State[0])] += 1. * scale
+            elif int(bnc0[7]) == 0 and int(bnc1[7]) == -1: #Q->T
+                Trans[2, int(bnc1[1]):len(State[0])] += 1. * scale
 
-        State[0, int(bnc1[1]):int(bnc2[1])] += 1 * scale
+            State[0, int(bnc1[1]):int(bnc2[1])] += 1 * scale
 
-    elif int(bnc1[7]) == 0:# and flag != traj:
+        elif int(bnc1[7]) == 0:# and flag != traj:
 
-        if int(bnc1[2]) == 1 and int(bnc1[7]) == 0: #C->Q
-            if nb > 0:
-                mistake += 1
-                print("Particle returned to Q state.")
-                print('traj: ', str(traj), 'nb: ', str(nb), 'err: ', str(mistake))
-                #State[2, int(bnc1[1]):len(State[2])] += 1 * scale
-                Trans[5, int(bnc1[1])+1:len(State[0])] -= 1 * scale
-                return -5000
+            if int(bnc0[7]) == 1 and int(bnc1[7]) == 0: #C->Q
+                if nb > 0:
+                    mistake += 1
+                    print("Particle returned to Q state.")
+                    print('traj: ', str(traj), 'nb: ', str(nb), 'err: ', str(mistake))
+                    #State[2, int(bnc1[1]):len(State[2])] += 1 * scale
+                    Trans[5, int(bnc1[1])+1:len(State[0])] -= 1 * scale
+                    return -5000
 
-            Trans[5, int(bnc1[1]):len(State[0])] += 1 * scale
+                Trans[5, int(bnc1[1]):len(State[0])] += 1 * scale
 
-        elif int(bnc1[2]) == -1 and int(bnc1[7]) == 0: #T->Q
-            Trans[0, int(bnc1[1]):len(State[1])] += 1. * scale
+            elif int(bnc0[7]) == -1 and int(bnc1[7]) == 0: #T->Q
+                Trans[0, int(bnc1[1]):len(State[1])] += 1. * scale
 
-        State[1, int(bnc1[1]):int(bnc2[1])] += 1 * scale
+            State[1, int(bnc1[1]):int(bnc2[1])] += 1 * scale
 
     return flag
 
@@ -175,14 +191,48 @@ def Evalbounce(nb, Bnc, Epar, Enorm, Epot):
     Bnc[7,nb] = s2
     return s2
 
+# try and find the diff quotient for dt, which reaches from one bounce to the next one
 def TransitionRate(dt, Nb, N_ab, T_ab):
-    for t in range(0,len(Nb)):
+    for t in range(0,len(Nb),dt):
         if Nb[t] == 0:
             T_ab[t] = T_ab[t-1]
         else:
             dq = N_ab[t] / dt
             T_ab[t] = dq / Nb[t]
     return T_ab
+
+
+def CheckZero(Arr, a, b, delta):
+    if (Arr[a] - Arr[b]) == 0:
+        CheckZero(Arr, a, b-delta, delta)
+        return -1
+    else:
+        return (Arr[a] - Arr[b])
+
+def DifferentiateT(dt, Nb, N_ab, T_ab):
+    ddt = dt * 0.025
+    h = dt
+    for t in range(dt, len(Nb)):
+        if Nb[t] == 0:
+            continue
+        else:
+            try:
+                diff = CheckZero(N_ab, t+dt, t-dt, dt)
+                T_ab[t] = diff / (ddt * Nb[t])
+            except:
+                b = len(N_ab) - 1
+                diff = CheckZero(N_ab, b, t-dt, dt)
+                T_ab[t] = diff / (ddt * Nb[t])
+    return T_ab
+
+
+def TransitionRateE(Trans, State, te, TRateE):
+    for t in range(0, 1200):
+        if((State[t] - State[int(te)]) == 0):
+            continue
+        TRateE[t] = (Trans[t] - Trans[int(te)])/ math.fabs(State[t] - State[int(te)])
+    return TRateE
+
 
 # calculate the transition on the grounds of the before and after state
 def Transition(s1, s2):
@@ -272,3 +322,29 @@ def Integrate(Anew, A, dt):
         i=j-1
         Anew[j] = A[i] * dt + Anew[i]
     return Anew
+
+#calculate average bounce time + stddev
+def BncTime(Bnc, ntraj, nbnc, steps, Arr):
+    avg = 0
+    ctr = 0
+    for n in range(0,nbnc):
+        for i in range(0,ntraj):
+            if(Bnc[1,n,i] > 0 and Bnc[1,n,i] < steps):
+                avg += Bnc[1,n,i]
+                ctr += 1
+            #end if(count real bounces)
+        #end for(scan each trajectory)
+        Arr[0,n] = avg / ctr
+        Arr[2,n] = ctr
+        print(ctr)
+        ctr = 0
+        avg = 0
+    #end for(scan each bounce)
+
+    for n in range(0,nbnc):
+        for i in range(0,ntraj):
+            if(Bnc[1,n,i] > 0 and Bnc[1,n,i] < steps):
+                Arr[1,n] += (Bnc[1,n,i] - Arr[0,n])**2
+        Arr[1,n] = np.sqrt(Arr[1,n] / (Arr[2,n]-1))
+
+    return Arr

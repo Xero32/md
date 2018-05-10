@@ -1,7 +1,9 @@
 # plot.py
 import matplotlib.pyplot as plt
 import smooth
+import math
 import numpy as np
+import numpy.ma as ma
 
 def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=2):
     TIMESTEPS = 1200
@@ -32,7 +34,7 @@ def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=2):
         plt.show(block=True)
         plt.close(fig)
 
-def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag=1, pltflag=1, nu=2):
+def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag=1, pltflag=1, nu=3):
     TIMESTEPS = 1200
     DT = 1
     if smflag == 1:
@@ -70,6 +72,8 @@ def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag
         plt.show(block=True)
         plt.close(fig)
 
+    return QT, TQ, CT, CQ, TC, QC
+
 
 #tpl: # nb, t1, t2, tm, s1, s2, transition, (energy loss ? ) # tuple with information about bounce events
 def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, Te, Tf, lblA='', lblB='', lblC='', lblD='', smflag=1, pltflag=1, nu=10):
@@ -92,6 +96,7 @@ def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, Te, Tf, lblA='', lblB
         legend = ax.legend()
         plt.xlabel("time / ps")
         plt.ylabel("")
+        plt.axis([0,30,-2,5])
         plt.title("Angle " + angle + " deg, Energy " + energy + " meV, Temp " + temp + " K")
         #plt.savefig('./check.pdf')
         #if int(temp) == 80:
@@ -103,10 +108,16 @@ def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, Te, Tf, lblA='', lblB
         plt.close(fig)
 
 #TODO
-def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', lbl='', Title='', totalplt=1, sm_flag=1, pltflag=1, nu=4, edge='none', edgeA='none', edgeB='none', edgeC='none', writeflag=0, flname=''):
+def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', lbl='', Title='', binarr=[], avg=0, std=0,
+ totalplt=1, sm_flag=1, pltflag=1, nu=4, edge='none', edgeA='none', edgeB='none', edgeC='none', writeflag=0, flname=''):
     # find a better way to create bins, so that 0 meV is always a bin boundary
     bin_len = 3 #TODO
-    bns = np.linspace(emin, emax, nbin)
+    average = -3000
+    stdev = -9000
+    if len(binarr) == 0:
+        bns = np.linspace(emin, emax, nbin)
+    else:
+        bns = binarr
     Tot = np.concatenate((A,B,C))
     hTot = np.histogram(Tot, bins=bns)
     hTotNorm = np.histogram(Tot, density=True, bins=bns)
@@ -125,9 +136,27 @@ def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', l
                 sB[k] = smooth.GaussSmoothing(len(hB[0]), k, hB[0], edge=edgeB, nu=nu, X=hTot[1][:-1])
                 sC[k] = smooth.GaussSmoothing(len(hC[0]), k, hC[0], edge=edgeC, nu=nu, X=hTot[1][:-1])
             if(pltflag == 1):
-                plt.plot(hA[1][:-1], 1e1*(sA) / norm, label=lblA)
-                plt.plot(hB[1][:-1], 1e1*(sB) / norm, label=lblB)
-                plt.plot(hC[1][:-1], 1e1*(sC) / norm ,label=lblC)
+                if edgeA == 'positive' or edgeA == 'pos':
+                        plt.plot(ma.masked_less(hA[1][:-1],0), 1e1*(sA / norm), label=lblA)
+                elif edgeA == 'negative' or edgeA == 'neg':
+                        plt.plot(ma.masked_greater(hA[1][:-1],0), 1e1*(sA / norm), label=lblA)
+                else:
+                        plt.plot(hA[1][:-1], 1e1*(sA) / norm, label=lblA)
+
+                if edgeB == 'positive' or edgeB == 'pos':
+                        plt.plot(ma.masked_less(hB[1][:-1],0), 1e1*(sB / norm), label=lblB)
+                elif edgeB == 'negative' or edgeB == 'neg':
+                        plt.plot(ma.masked_greater(hB[1][:-1],0), 1e1*(sB / norm), label=lblB)
+                else:
+                        plt.plot(hB[1][:-1], 1e1*(sB) / norm, label=lblB)
+
+                if edgeC == 'positive' or edgeC == 'pos':
+                        plt.plot(ma.masked_less(hC[1][:-1],0), 1e1*(sC / norm), label=lblC)
+                elif edgeC == 'negative' or edgeC == 'neg':
+                        plt.plot(ma.masked_greater(hC[1][:-1],0), 1e1*(sC / norm), label=lblC)
+                else:
+                        plt.plot(hC[1][:-1], 1e1*(sC) / norm, label=lblC)
+
         else:
             if(pltflag == 1):
                 plt.plot(hA[1][:-1], 1e1*(hA[0] / norm), label=lblA)
@@ -155,22 +184,29 @@ def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', l
         fl = open(flname,'w')
         fl.write("#X, total, T, Q, C\n")
         for i in range(0, len(hTot[0])):
-            fl.write("%e %e %e %e %e\n" %(hTot[1][i], sTot[i] / norm, sA[i] / norm, sB[i] / norm, sC[i] / norm))
+            fl.write("%e %e %e %e %e\n" %(hTot[1][i], sTot[i] * 1e1 / norm, sA[i] * 1e1 / norm, sB[i] * 1e1 / norm, sC[i] * 1e1 / norm))
         fl.close()
     elif writeflag == 1:
         print('Can only write to file with activated subplots and smoothing')
 
+    if avg == 1:
+        average = np.average(hTot[1][:-1], weights=sTot/norm)
+    if std == 1 and avg == 1:
+        square = np.average(np.square(hTot[1][:-1]), weights=sTot/norm)
+        stdev = math.sqrt(square - (average**2)) / nbin
+    elif std == 1 and avg != 1:
+        print("Error! Need Mean to calculate Std.")
 
     if subplts == 1:
         if sm_flag ==1:
-            return hTot[1], sTot*1e1, norm, sA*1e1, sB*1e1, sC*1e1
+            return hTot[1], sTot*1e1, norm, sA*1e1, sB*1e1, sC*1e1, average, stdev
         else:
-            return hTot[1], hTot[0]*1e1, norm, hA[0]*1e1, hB[0]*1e1, hC[0]*1e1
+            return hTot[1], hTot[0]*1e1, norm, hA[0]*1e1, hB[0]*1e1, hC[0]*1e1, average, stdev
     else:
         if sm_flag == 1:
-            return hTot[1], sTot*1e1, norm, [], [], []
+            return hTot[1], sTot*1e1, norm, [], [], [], average, stdev
         else:
-            return hTot[1], hTot[0]*1e1, norm, [], [], []
+            return hTot[1], hTot[0]*1e1, norm, [], [], [], average, stdev
 
 
 def EnergyDistribution():
