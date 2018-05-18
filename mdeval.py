@@ -36,10 +36,11 @@ if energy != '70':
     elif int(temperature) == 300:
         jobs = (7094785, 7107197, 7107198, 7107199, 7107200, 7107201, 7131101, 7131102, 7131113, 7131114)
         te = 15 // 0.025 #T=300 K
-
+name = 'a'+Angle[angle]+'t'+Temperature[temperature]+'e'+Energy[energy]
+''' Ar-Pt analysis
 jobs = (7331694, 7331705, 7331706, 7331713, 7331723)
-
 name = 'Pta'+Angle[angle]+'t'+Temperature[temperature]+'e'+Energy[energy]
+'''
 in_folder = '/home/becker/lammps/111/' + name + '/'
 
 TIMESTEPS = 120000 // 100
