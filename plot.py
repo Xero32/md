@@ -34,7 +34,7 @@ def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=2):
         plt.show(block=True)
         plt.close(fig)
 
-def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag=1, pltflag=1, nu=3):
+def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag=1, pltflag=1, nu=10):
     TIMESTEPS = 1200
     DT = 1
     if smflag == 1:
@@ -57,8 +57,12 @@ def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag
         ax.plot(X*2.5e-2, TQ, '-', label = 'TQ')
         ax.plot(X*2.5e-2, CT, '-', label = 'CT')
         ax.plot(X*2.5e-2, CQ, '-', label = 'CQ')
-        ax.plot(X*2.5e-2, TC, '-', label = 'TC')
-        ax.plot(X*2.5e-2, QC, '-', label = 'QC')
+        try:
+            ax.plot(X*2.5e-2, TC, '-', label = 'TC')
+            ax.plot(X*2.5e-2, QC, '-', label = 'QC')
+        except:
+            dummy=1
+
         legend = ax.legend()
         plt.xlabel("time / ps")
         plt.ylabel("")
@@ -76,7 +80,7 @@ def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag
 
 
 #tpl: # nb, t1, t2, tm, s1, s2, transition, (energy loss ? ) # tuple with information about bounce events
-def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, Te, Tf, lblA='', lblB='', lblC='', lblD='', smflag=1, pltflag=1, nu=10):
+def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, lblA='', lblB='', lblC='', lblD='', smflag=1, pltflag=1, nu=10, ylbl=''):
     if smflag == 1:
         print("Smoothing Transition Rates")
         for k in range(0,len(Ta)):
@@ -91,12 +95,10 @@ def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, Te, Tf, lblA='', lblB
         ax.plot(X*2.5e-2, Tb, '-', label = lblB)
         ax.plot(X*2.5e-2, Tc, '-', label = lblC)
         ax.plot(X*2.5e-2, Td, '-', label = lblD)
-        ax.plot(X*2.5e-2, Te, '-', label = 'T_TC')
-        ax.plot(X*2.5e-2, Tf, '-', label = 'T_QC')
         legend = ax.legend()
         plt.xlabel("time / ps")
-        plt.ylabel("")
-        plt.axis([0,30,-2,5])
+        plt.ylabel(ylbl)
+        plt.axis([0,50,-2,5])
         plt.title("Angle " + angle + " deg, Energy " + energy + " meV, Temp " + temp + " K")
         #plt.savefig('./check.pdf')
         #if int(temp) == 80:
@@ -109,7 +111,7 @@ def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, Te, Tf, lblA='', lblB
 
 #TODO
 def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', lbl='', Title='', binarr=[], avg=0, std=0,
- totalplt=1, sm_flag=1, pltflag=1, nu=4, edge='none', edgeA='none', edgeB='none', edgeC='none', writeflag=0, flname=''):
+ totalplt=1, sm_flag=1, pltflag=1, nu=4, edge='none', edgeA='none', edgeB='none', edgeC='none', writeflag=0, flname='', nb=0, action=-1, scl=1):
     # find a better way to create bins, so that 0 meV is always a bin boundary
     bin_len = 3 #TODO
     average = -3000
@@ -137,42 +139,42 @@ def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', l
                 sC[k] = smooth.GaussSmoothing(len(hC[0]), k, hC[0], edge=edgeC, nu=nu, X=hTot[1][:-1])
             if(pltflag == 1):
                 if edgeA == 'positive' or edgeA == 'pos':
-                        plt.plot(ma.masked_less(hA[1][:-1],0), 1e1*(sA / norm), label=lblA)
+                        plt.plot(ma.masked_less(hA[1][:-1],0), scl*(sA / norm), label=lblA)
                 elif edgeA == 'negative' or edgeA == 'neg':
-                        plt.plot(ma.masked_greater(hA[1][:-1],0), 1e1*(sA / norm), label=lblA)
+                        plt.plot(ma.masked_greater(hA[1][:-1],0), scl*(sA / norm), label=lblA)
                 else:
-                        plt.plot(hA[1][:-1], 1e1*(sA) / norm, label=lblA)
+                        plt.plot(hA[1][:-1], scl*(sA) / norm, label=lblA)
 
                 if edgeB == 'positive' or edgeB == 'pos':
-                        plt.plot(ma.masked_less(hB[1][:-1],0), 1e1*(sB / norm), label=lblB)
+                        plt.plot(ma.masked_less(hB[1][:-1],0), scl*(sB / norm), label=lblB)
                 elif edgeB == 'negative' or edgeB == 'neg':
-                        plt.plot(ma.masked_greater(hB[1][:-1],0), 1e1*(sB / norm), label=lblB)
+                        plt.plot(ma.masked_greater(hB[1][:-1],0), scl*(sB / norm), label=lblB)
                 else:
-                        plt.plot(hB[1][:-1], 1e1*(sB) / norm, label=lblB)
+                        plt.plot(hB[1][:-1], scl*(sB) / norm, label=lblB)
 
                 if edgeC == 'positive' or edgeC == 'pos':
-                        plt.plot(ma.masked_less(hC[1][:-1],0), 1e1*(sC / norm), label=lblC)
+                        plt.plot(ma.masked_less(hC[1][:-1],0), scl*(sC / norm), label=lblC)
                 elif edgeC == 'negative' or edgeC == 'neg':
-                        plt.plot(ma.masked_greater(hC[1][:-1],0), 1e1*(sC / norm), label=lblC)
+                        plt.plot(ma.masked_greater(hC[1][:-1],0), scl*(sC / norm), label=lblC)
                 else:
-                        plt.plot(hC[1][:-1], 1e1*(sC) / norm, label=lblC)
+                        plt.plot(hC[1][:-1], scl*(sC) / norm, label=lblC)
 
         else:
             if(pltflag == 1):
-                plt.plot(hA[1][:-1], 1e1*(hA[0] / norm), label=lblA)
-                plt.plot(hB[1][:-1], 1e1*(hB[0] / norm), label=lblB)
-                plt.plot(hC[1][:-1], 1e1*(hC[0] / norm), label=lblC)
+                plt.plot(hA[1][:-1], scl*(hA[0] / norm), label=lblA)
+                plt.plot(hB[1][:-1], scl*(hB[0] / norm), label=lblB)
+                plt.plot(hC[1][:-1], scl*(hC[0] / norm), label=lblC)
     if totalplt == 1:
         if sm_flag == 1:
             sTot = np.zeros([len(hTot[0])])
             for k in range(0, len(hTot[0])):
                 sTot[k] = smooth.GaussSmoothing(len(hTot[0]), k, hTot[0], edge=edge, nu=nu, X=hTot[1][:-1])
             if pltflag == 1:
-                plt.plot(hTot[1][:-1], 1e1*sTot / norm, label=lbl)
+                plt.plot(hTot[1][:-1], scl*sTot / norm, label=lbl)
 
         else:
             if pltflag == 1:
-                plt.plot(hTot[1][:-1], 1e1*(hTot[0] / norm), label=lbl)
+                plt.plot(hTot[1][:-1], scl*(hTot[0] / norm), label=lbl)
     if pltflag == 1:
         plt.title(Title)
         plt.legend()
@@ -181,11 +183,11 @@ def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', l
         plt.close()
 
     if writeflag == 1 and sm_flag == 1 and subplts == 1:
-        fl = open(flname,'w')
-        fl.write("#X, total, T, Q, C\n")
+        fl = open(flname,'a')
+        fl.write("#action\t bnc\t X\t\t\t total\t\t\t T\t\t\t\t Q\t\t\t\t C\n")
         for i in range(0, len(hTot[0])):
-            fl.write("%e %e %e %e %e\n" %(hTot[1][i], sTot[i] * 1e1 / norm, sA[i] * 1e1 / norm, sB[i] * 1e1 / norm, sC[i] * 1e1 / norm))
-        fl.close()
+            fl.write("%d\t\t %d\t %e\t %e\t %e\t %e\t %e\n" %(action, nb, hTot[1][i], sTot[i] * scl / norm, sA[i] * scl / norm, sB[i] * scl / norm, sC[i] * scl / norm))
+
     elif writeflag == 1:
         print('Can only write to file with activated subplots and smoothing')
 
@@ -199,14 +201,14 @@ def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', l
 
     if subplts == 1:
         if sm_flag ==1:
-            return hTot[1], sTot*1e1, norm, sA*1e1, sB*1e1, sC*1e1, average, stdev
+            return hTot[1], sTot*scl, norm, sA*scl, sB*scl, sC*scl, average, stdev
         else:
-            return hTot[1], hTot[0]*1e1, norm, hA[0]*1e1, hB[0]*1e1, hC[0]*1e1, average, stdev
+            return hTot[1], hTot[0]*scl, norm, hA[0]*scl, hB[0]*scl, hC[0]*scl, average, stdev
     else:
         if sm_flag == 1:
-            return hTot[1], sTot*1e1, norm, [], [], [], average, stdev
+            return hTot[1], sTot*scl, norm, [], [], [], average, stdev
         else:
-            return hTot[1], hTot[0]*1e1, norm, [], [], [], average, stdev
+            return hTot[1], hTot[0]*scl, norm, [], [], [], average, stdev
 
 
 def EnergyDistribution():

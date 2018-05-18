@@ -126,12 +126,17 @@ def Population(nb, bnc0, bnc1, bnc2, State, Trans, Refl, scale, traj):
             State[2, int(bnc1[1]):len(State[2])] += 1 * scale
             #State[2, int(bnc1[1]):int(bnc2[1])] += 1
 
+            #TODO
+            #if int(bnc1[2]) == -1 and int(bnc1[7]) == 1: #T->C
             if int(bnc0[7]) == -1 and int(bnc1[7]) == 1: #T->C
                 Trans[1, int(bnc1[1]):len(State[2])] += 1 * scale
-
+            #TODO
+            #elif int(bnc1[2]) == 0 and int(bnc1[7]) == 1: #Q->C
             elif int(bnc0[7]) == 0 and int(bnc1[7]) == 1: #Q->C
                 Trans[3, int(bnc1[1]):len(State[2])] += 1. * scale
-
+                print('it happened')
+            #TODO
+            #elif int(bnc1[2]) == 1 and int(bnc1[7]) == 1: # direct reflection
             elif int(bnc0[7]) == 1 and int(bnc1[7]) == 1: # direct reflection
                 print('supposed direct reflection at later bounce', str(nb), str(traj))
                 Refl[int(bnc1[1]):len(State[2])] += 1. * scale
@@ -153,7 +158,8 @@ def Population(nb, bnc0, bnc1, bnc2, State, Trans, Refl, scale, traj):
                     return -6000
 
                 Trans[4, int(bnc1[1]):len(State[0])] += 1 * scale
-
+            #TODO
+            #elif int(bnc1[2]) == 0 and int(bnc1[7]) == -1: #Q->T
             elif int(bnc0[7]) == 0 and int(bnc1[7]) == -1: #Q->T
                 Trans[2, int(bnc1[1]):len(State[0])] += 1. * scale
 
@@ -161,6 +167,8 @@ def Population(nb, bnc0, bnc1, bnc2, State, Trans, Refl, scale, traj):
 
         elif int(bnc1[7]) == 0:# and flag != traj:
 
+            #TODO
+            #if int(bnc1[2]) == 1 and int(bnc1[7]) == 0: #C->Q
             if int(bnc0[7]) == 1 and int(bnc1[7]) == 0: #C->Q
                 if nb > 0:
                     mistake += 1
@@ -171,7 +179,8 @@ def Population(nb, bnc0, bnc1, bnc2, State, Trans, Refl, scale, traj):
                     return -5000
 
                 Trans[5, int(bnc1[1]):len(State[0])] += 1 * scale
-
+            #TODO
+            #elif int(bnc1[2]) == -1 and int(bnc1[7]) == 0: #T->Q
             elif int(bnc0[7]) == -1 and int(bnc1[7]) == 0: #T->Q
                 Trans[0, int(bnc1[1]):len(State[1])] += 1. * scale
 
@@ -192,6 +201,7 @@ def Evalbounce(nb, Bnc, Epar, Enorm, Epot):
     return s2
 
 # try and find the diff quotient for dt, which reaches from one bounce to the next one
+#Deprecated
 def TransitionRate(dt, Nb, N_ab, T_ab):
     for t in range(0,len(Nb),dt):
         if Nb[t] == 0:
@@ -202,83 +212,77 @@ def TransitionRate(dt, Nb, N_ab, T_ab):
     return T_ab
 
 
-def CheckZero(Arr, a, b, delta):
-    if (Arr[a] - Arr[b]) == 0:
-        CheckZero(Arr, a, b-delta, delta)
-        return -1
-    else:
-        return (Arr[a] - Arr[b])
-
+# TODO
+# numerical differentiation, where we iteratively look for the most recent change in slope
 def DifferentiateT(dt, Nb, N_ab, T_ab):
-    ddt = dt * 0.025
+    ddt = dt * 0.025    # [ps]
+    ddt = ddt / 6.53    # [t_0]
+    # this constitutes unit conversion to t_0 = 6.53 ps
+    # effectively T * tt * gamma = T * t_0
+    # where gamma = 6.53/0.025 and tt = 0.025
+
     h = dt
-    for t in range(dt, len(Nb)):
+    ctr = 2
+    start = 10 //0.025
+    a = 0
+    b = 0
+    save = 0
+    for t in range(int(start), len(Nb)):
         if Nb[t] == 0:
+            continue
+        if N_ab[t] == 0:
             continue
         else:
             try:
-                diff = CheckZero(N_ab, t+dt, t-dt, dt)
-                T_ab[t] = diff / (ddt * Nb[t])
+                a = t+dt
+                #diff = N_ab[a] - N_ab[save]
+                b = t-dt
+                diff = N_ab[a] - N_ab[b]
+
+                while diff == 0:
+                    right = N_ab[b-dt]
+                    diff = N_ab[t+dt] - right
+                    b -= dt
+                    save = b
+                    ctr += 1
+                    #print(str(diff), str(t), str(b))
+
+                T_ab[t] = diff / (ctr * ddt * Nb[t])
+                ctr = 2
             except:
-                b = len(N_ab) - 1
-                diff = CheckZero(N_ab, b, t-dt, dt)
-                T_ab[t] = diff / (ddt * Nb[t])
+                a = len(N_ab) - 1
+                b = t-dt
+                diff = N_ab[a] - N_ab[b]
+
+                while diff == 0:
+                    right = N_ab[b-dt]
+                    diff = N_ab[a] - right
+                    b -= dt
+                    save = b
+                    ctr += 1
+                    print(print(str(diff)), str(t), str(b), str(a))
+
+                T_ab[t] = diff / (ctr * ddt * Nb[t])
+                ctr = 2
     return T_ab
 
+def AlternTransition(Trans, State, fixpoint, TRateA, Max):
+    for t in range(0,Max):
+        diff = Trans[t] - Trans[fixpoint]
+        dt = t - fixpoint
+        ddt = dt * 0.025 / 6.53
+        if ddt != 0 and State[t] != 0:
+            TRateA[t] = diff / State[t] / ddt
+        else:
+            TRateA[t] = 0
+    return TRateA
 
-def TransitionRateE(Trans, State, te, TRateE):
-    for t in range(0, 1200):
+def TransitionRateE(Trans, State, te, TRateE, Max):
+    for t in range(0, Max):
         if((State[t] - State[int(te)]) == 0):
             continue
-        TRateE[t] = (Trans[t] - Trans[int(te)])/ math.fabs(State[t] - State[int(te)])
+        TRateE[t] = (Trans[t] - Trans[int(te)])/ math.fabs(State[t] - State[int(te)]) / 6.53
     return TRateE
-
-
-# calculate the transition on the grounds of the before and after state
-def Transition(s1, s2):
-    if s1 == -1 and s2 == 0:
-        return 0   # T -> Q: 0
-    elif s1 == -1 and s2 == 1:
-        return 1   # T -> C: 1
-    elif s1 == 0 and s2 == -1:
-        return 2   # Q -> T: 2
-    elif s1 == 0 and s2 == 1:
-        return 3    # Q -> C: 3
-    elif s1 == 1 and s2 == -1:
-        return 4   # C -> T: 4
-    elif s1 == 1 and s2 == 0:
-        return 5    # C -> Q: 5
-    elif s1 == 1 and s2 == 1:
-        return -99
-    else:
-        return -1
-
-def TransitionValues(num, tpl1, TQ, QT, QC, TC, CT, CQ, scale):
-    #deprecated
-    if tpl1[3] > len(TQ)-6:
-        tpl1[3] = len(TQ)
-
-    if int(tpl1[6]) == 0:
-        for i in range(int(tpl1[1]), len(TQ)): # for bounce event, write to array from t1 till t2
-            QT[i] += 1 * scale
-    if int(tpl1[6]) == 2:
-        for i in range(int(tpl1[1]), len(TQ)): # for i in range(int(tpl1[1]), int(tpl1[2])):
-            TQ[i] += 1 * scale
-    if int(tpl1[6]) == 3:
-        for i in range(int(tpl1[1]), len(TQ)):
-            CQ[i] += 1 * scale
-    if int(tpl1[6]) == 1:
-        for i in range(int(tpl1[1]), len(TQ)):
-            CT[i] += 1 * scale
-    if num == 0:
-        return 0
-    if int(tpl1[6]) == 4:
-        for i in range(int(tpl1[1]), len(TQ)):
-            TC[i] += 1 * scale
-    if int(tpl1[6]) == 5:
-        for i in range(int(tpl1[1]), len(TQ)):
-            QC[i] += 1 * scale
-    return 1
 
     '''State = np.zeros([3,TIMESTEPS]) # T, Q, C
     Trans = np.zeros([6,TIMESTEPS]) # QT, CT, TQ, CQ, TC, QC
@@ -290,14 +294,14 @@ def IntegratePopulationT(Tnew, State, TRate, dt):
     Tnew[0] = State[0,0]
     for j in range(1, len(State[0])):
         i = j-1
-        Tnew[j] = -State[0,i] * (TRate[0][i] + TRate[1][i]) * dt + State[1][i] * TRate[2][i] * dt + State[2][i] * TRate[4][i] * dt# + Tnew[i]
+        Tnew[j] = -State[0,i] * (TRate[0][i] + TRate[1][i]) * dt + State[1][i] * TRate[2][i] * dt# + State[2][i] * TRate[4][i] * dt# + Tnew[i]
     return Tnew
 
 def IntegratePopulationQ(Qnew, State, TRate, dt):
     Qnew[0] = State[1,0]
     for j in range(1,len(State[1])):
         i = j-1
-        Qnew[j] = -State[1][i] * (TRate[3][i] + TRate[2][i]) * dt + State[0][i] * TRate[0][i] * dt + State[2][i] * TRate[5][i] * dt# + Qnew[i]
+        Qnew[j] = -State[1][i] * (TRate[3][i] + TRate[2][i]) * dt + State[0][i] * TRate[0][i] * dt# + State[2][i] * TRate[5][i] * dt# + Qnew[i]
     return Qnew
 
 def IntegratePopulationC(Cnew, State, TRate, dt):
