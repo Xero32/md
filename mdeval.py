@@ -155,8 +155,8 @@ StateSum[2] = 1 + Trans[1] + Trans[3] - Trans[4] - Trans[5]
 
 StickCoeff = stats.InitSticking(Refl, float(Angle[angle]),float(Temperature[temperature]), float(Energy[energy]), TOTAL)
 
-plot.Populations(angle, temperature, Energy[energy], Time, State[0], State[1], State[2], smflag=0, pltflag=1)
-Trans[0], Trans[2], Trans[1], Trans[3], Trans[4], Trans[5] = plot.TransitionPopulations(angle, temperature, Energy[energy], Time, Trans[0], Trans[2], Trans[1], Trans[3], np.zeros([TIMESTEPS]),np.zeros([TIMESTEPS]), smflag=0, pltflag=1)
+plot.Populations(angle, temperature, Energy[energy], Time, State[0], State[1], State[2], smflag=0, pltflag=0)
+Trans[0], Trans[2], Trans[1], Trans[3], Trans[4], Trans[5] = plot.TransitionPopulations(angle, temperature, Energy[energy], Time, Trans[0], Trans[2], Trans[1], Trans[3], np.zeros([TIMESTEPS]),np.zeros([TIMESTEPS]), smflag=0, pltflag=0)
 
 '''
 print("Plot Summed Populations")
@@ -210,16 +210,16 @@ left = State[0,-400] * TRate[0,-400]
 right = State[1,-400] * TRate[2,-400] + State[1,-400] * TRate[3,-400]
 print('N_T * T_QT \t\tvs.\t N_Q * (T_TQ + T_CQ)')
 print(left, '\tvs.\t', right)
-plot.TransitionRate(angle, temperature, Energy[energy], Time, TRate[0], TRate[2], TRate[1], TRate[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=1, ylbl='T / t\u2080\u207B\u00B9')
-plot.TransitionRate(angle, temperature, Energy[energy], Time, TRateE[0], TRateE[2], TRateE[1], TRateE[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=1)
-plot.TransitionRate(angle, temperature, Energy[energy], Time, TRateA[0], TRateA[2], TRateA[1], TRateA[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=1, ylbl='Alternative Calculation')
+plot.TransitionRate(angle, temperature, Energy[energy], Time, TRate[0], TRate[2], TRate[1], TRate[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=0, ylbl='T / t\u2080\u207B\u00B9')
+plot.TransitionRate(angle, temperature, Energy[energy], Time, TRateE[0], TRateE[2], TRateE[1], TRateE[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=0)
+plot.TransitionRate(angle, temperature, Energy[energy], Time, TRateA[0], TRateA[2], TRateA[1], TRateA[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=0, ylbl='Alternative Calculation')
 
 StateNew[0] = bounce.IntegratePopulationT(StateNew[0], State, TRate, 1)
 StateNew[1] = bounce.IntegratePopulationQ(StateNew[1], State, TRate, 1)
 StateNew[2] = bounce.IntegratePopulationC(StateNew[2], State, TRate, 1)
-plot.Populations(angle, temperature, Energy[energy], Time, StateNew[0], StateNew[1], StateNew[2], smflag=0, pltflag=1)
-plot.Populations(angle, temperature, Energy[energy], Time, StateSum[0], StateSum[1], StateSum[2], smflag=0, pltflag=1)
-sys.exit()
+plot.Populations(angle, temperature, Energy[energy], Time, StateNew[0], StateNew[1], StateNew[2], smflag=0, pltflag=0)
+plot.Populations(angle, temperature, Energy[energy], Time, StateSum[0], StateSum[1], StateSum[2], smflag=0, pltflag=0)
+#sys.exit()
 R = np.zeros([2,2,3])
 Rstd = np.zeros([2,2,3])
 start = int(15//0.025)

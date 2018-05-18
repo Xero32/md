@@ -61,21 +61,22 @@ def AvgRate(start, end, TRate):
     M = end - start
     for i in range(start, end):
         avg += TRate[i] / M
+    return avg
 
 def StdRate(start, end, TRate, avg):
     std = 0
     M = end - start
     for i in range(start, end):
-        std = (TRate[i] - avg) ** 2
-        std /= M - 1
+        std += (TRate[i] - avg) ** 2 / (M-1)
+    return np.sqrt(std)
 
 def CalcR(start, end, R, Rstd, TRate):
-    R[0,0] = -stats.AvgRate(start, end, TRate[1]) - stats.AvgRate(start, end, Trate[0])
-    Rstd[0,0] = stats.StdRate(start, end, TRate[1], R[0,0]) + stats.StdRate(start, end, TRate[0], R[0,0])
-    R[1,1] = -stats.AvgRate(start, end, TRate[3]) - stats.AvgRate(start, end, Trate[2])
-    Rstd[1,1] = stats.StdRate(start, end, TRate[3], R[1,1]) + stats.StdRate(start, end, TRate[2], R[1,1])
-    R[0,1] = -stats.AvgRate(start, end, TRate[2])
-    Rstd[0,1] = stats.StdRate(start, end, TRate[2], R[0,1])
-    R[1,0] = stats.AvgRate(start, end, TRate[0])
-    Rstd[1,0] = stats.stdRate(start, end, TRate[0], R[1,0])
+    R[0,0] = -AvgRate(start, end, TRate[1]) - AvgRate(start, end, TRate[0])
+    Rstd[0,0] = StdRate(start, end, TRate[1], R[0,0]) + StdRate(start, end, TRate[0], R[0,0])
+    R[1,1] = -AvgRate(start, end, TRate[3]) - AvgRate(start, end, TRate[2])
+    Rstd[1,1] = StdRate(start, end, TRate[3], R[1,1]) + StdRate(start, end, TRate[2], R[1,1])
+    R[0,1] = -AvgRate(start, end, TRate[2])
+    Rstd[0,1] = StdRate(start, end, TRate[2], R[0,1])
+    R[1,0] = AvgRate(start, end, TRate[0])
+    Rstd[1,0] = StdRate(start, end, TRate[0], R[1,0])
     return R

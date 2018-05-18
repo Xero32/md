@@ -134,7 +134,7 @@ def Population(nb, bnc0, bnc1, bnc2, State, Trans, Refl, scale, traj):
             #elif int(bnc1[2]) == 0 and int(bnc1[7]) == 1: #Q->C
             elif int(bnc0[7]) == 0 and int(bnc1[7]) == 1: #Q->C
                 Trans[3, int(bnc1[1]):len(State[2])] += 1. * scale
-                print('it happened')
+                #print('it happened')
             #TODO
             #elif int(bnc1[2]) == 1 and int(bnc1[7]) == 1: # direct reflection
             elif int(bnc0[7]) == 1 and int(bnc1[7]) == 1: # direct reflection
@@ -260,7 +260,7 @@ def DifferentiateT(dt, Nb, N_ab, T_ab):
                     b -= dt
                     save = b
                     ctr += 1
-                    print(print(str(diff)), str(t), str(b), str(a))
+                    #print(print(str(diff)), str(t), str(b), str(a))
 
                 T_ab[t] = diff / (ctr * ddt * Nb[t])
                 ctr = 2
