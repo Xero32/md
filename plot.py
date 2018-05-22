@@ -5,7 +5,7 @@ import math
 import numpy as np
 import numpy.ma as ma
 
-def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=2):
+def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=6):
     TIMESTEPS = 1200
     DT = 1
     if smflag == 1:

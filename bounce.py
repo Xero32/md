@@ -266,6 +266,48 @@ def DifferentiateT(dt, Nb, N_ab, T_ab):
                 ctr = 2
     return T_ab
 
+def DifferentiateT2(dt, Nb, N_ab, T_ab):
+    ddt = dt * 0.025    # [ps]
+    ddt = ddt / 6.53    # [t_0]
+    # this constitutes unit conversion to t_0 = 6.53 ps
+    # effectively T * tt * gamma = T * t_0
+    # where gamma = 6.53/0.025 and tt = 0.025
+
+    h = dt
+    ctr = 1
+    start = 11 //0.025
+    a = 0
+    b = 0
+    save = 0
+    for t in range(int(start), len(Nb)):
+        if Nb[t] == 0:
+            continue
+        if N_ab[t] == 0:
+            continue
+        else:
+            try:
+                a = t+dt
+                #diff = N_ab[a] - N_ab[save]
+                b = t-dt
+                diff = N_ab[a] - N_ab[b]
+                #print(str(diff), str(t), str(b))
+
+                T_ab[t] = diff / (ctr * ddt * Nb[t])
+                ctr = 1
+            except:
+                a = len(N_ab) - 1
+                b = t-dt
+                diff = N_ab[a] - N_ab[b]
+
+                #print(print(str(diff)), str(t), str(b), str(a))
+
+                delta = (a-b) * 0.025 / 6.53 / 2
+                T_ab[t] = diff / (delta * Nb[t])
+                ctr = 1
+    return T_ab
+
+
+
 def AlternTransition(Trans, State, fixpoint, TRateA, Max):
     for t in range(0,Max):
         diff = Trans[t] - Trans[fixpoint]

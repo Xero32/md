@@ -11,6 +11,7 @@ import stats
 
 Angle  = {'0':'0.00', '30':'0.52', '45':'0.80', '60':'1.05'}
 Temperature={'80':'80', '190':'190', '300':'300'}
+te = 15 // 0.025 #default
 try:
     angle = sys.argv[1]
     temperature = sys.argv[2]
@@ -38,7 +39,7 @@ if energy != '70':
         te = 15 // 0.025 #T=300 K
 name = 'a'+Angle[angle]+'t'+Temperature[temperature]+'e'+Energy[energy]
 ''' Ar-Pt analysis
-jobs = (7331694, 7331705, 7331706, 7331713, 7331723)
+jobs = (7331694, 7331705, 7331706, 7331713, 7331723, 7344079, 7344080, 7344081)
 name = 'Pta'+Angle[angle]+'t'+Temperature[temperature]+'e'+Energy[energy]
 '''
 in_folder = '/home/becker/lammps/111/' + name + '/'
@@ -155,7 +156,7 @@ StateSum[2] = 1 + Trans[1] + Trans[3] - Trans[4] - Trans[5]
 
 StickCoeff = stats.InitSticking(Refl, float(Angle[angle]),float(Temperature[temperature]), float(Energy[energy]), TOTAL)
 
-plot.Populations(angle, temperature, Energy[energy], Time, State[0], State[1], State[2], smflag=0, pltflag=0)
+plot.Populations(angle, temperature, Energy[energy], Time, State[0], State[1], State[2], smflag=1, pltflag=0)
 Trans[0], Trans[2], Trans[1], Trans[3], Trans[4], Trans[5] = plot.TransitionPopulations(angle, temperature, Energy[energy], Time, Trans[0], Trans[2], Trans[1], Trans[3], np.zeros([TIMESTEPS]),np.zeros([TIMESTEPS]), smflag=0, pltflag=0)
 
 '''
@@ -191,7 +192,7 @@ TRate = np.zeros([4, TIMESTEPS]) # QT, CT, TQ, CQ, TC, QC'''
 print("Calculate Transition Rates")
 d = 0
 for i in range(0,6):
-    TRate[i] = bounce.DifferentiateT(30, State[d], Trans[i], TRate[i])
+    TRate[i] = bounce.DifferentiateT(50, State[d], Trans[i], TRate[i])
     d += i % 2
 
 d = 0
@@ -202,29 +203,119 @@ for i in range(0,6):
 
 d = 0
 for i in range(0,6):
-    TRateA[i] = bounce.AlternTransition(Trans[i], State[d], int(10//0.025), TRateA[i], TIMESTEPS)
+    TRateA[i] = bounce.AlternTransition(Trans[i], State[d], int(15//0.025), TRateA[i], TIMESTEPS)
     d += i % 2
 
 
-left = State[0,-400] * TRate[0,-400]
-right = State[1,-400] * TRate[2,-400] + State[1,-400] * TRate[3,-400]
+left = State[0,-100] * TRate[0,-100]
+right = State[1,-100] * TRate[2,-100] + State[1,-100] * TRate[3,-100]
 print('N_T * T_QT \t\tvs.\t N_Q * (T_TQ + T_CQ)')
 print(left, '\tvs.\t', right)
 plot.TransitionRate(angle, temperature, Energy[energy], Time, TRate[0], TRate[2], TRate[1], TRate[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=0, ylbl='T / t\u2080\u207B\u00B9')
 plot.TransitionRate(angle, temperature, Energy[energy], Time, TRateE[0], TRateE[2], TRateE[1], TRateE[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=0)
 plot.TransitionRate(angle, temperature, Energy[energy], Time, TRateA[0], TRateA[2], TRateA[1], TRateA[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=0, ylbl='Alternative Calculation')
 
+fp = 800 #fixpoint aka t_e
 StateNew[0] = bounce.IntegratePopulationT(StateNew[0], State, TRate, 1)
 StateNew[1] = bounce.IntegratePopulationQ(StateNew[1], State, TRate, 1)
 StateNew[2] = bounce.IntegratePopulationC(StateNew[2], State, TRate, 1)
 plot.Populations(angle, temperature, Energy[energy], Time, StateNew[0], StateNew[1], StateNew[2], smflag=0, pltflag=0)
 plot.Populations(angle, temperature, Energy[energy], Time, StateSum[0], StateSum[1], StateSum[2], smflag=0, pltflag=0)
-#sys.exit()
 R = np.zeros([2,2,3])
 Rstd = np.zeros([2,2,3])
-start = int(15//0.025)
+start = int(20//0.025)
 end = int(30//0.025)
+N = np.zeros([2, TIMESTEPS*2])
+
+#TRate[0] *= 2.
+'''
+T_QT = 0.01
+T_TQ = 1.8
+T_CQ = 0.13
+T_CT = 0.0
+R[0,0,0] = -(T_CT+T_QT)
+R[0,1,0] = T_TQ
+R[1,0,0] = T_QT
+R[1,1,0] = -(T_CQ+T_TQ)
+'''
+N[0][fp] = State[0][fp]
+N[1][fp] = State[1][fp]
+Time2 = np.arange(0, TIMESTEPS*2)
 stats.CalcR(start, end, R[:,:,0], Rstd[:,:,0], TRate)
+l1, l2 = stats.Eigenvalue(R[:,:,0])
+c1, c2 = stats.Coeffs(l1, l2, N, R[:,:,0], fp)
+N = stats.PopN(c1, c2, l1, l2, R[:,:,0], N, TIMESTEPS, fp)
+print(l1, l2, c1, c2)
+print(R[:,:,0])
+
+plt.plot(Time2*0.025, N[0], 'b', label='T_an', alpha=0.5)
+plt.plot(Time*0.025, State[0], 'b-.', label='T_num')
+plt.plot(Time2*0.025, N[1], 'g', label='Q_an', alpha=0.5)
+plt.plot(Time*0.025, State[1], 'g--', label='Q_num')
+plt.legend()
+plt.title("Method 1, Angle " + angle + " deg, Energy " + Energy[energy] + " meV, Temp " + temperature + " K")
+plt.axis([0, 60, -.05, 1.05])
+plt.show()
+
+N[0][fp] = State[0][fp]
+N[1][fp] = State[1][fp]
+Time2 = np.arange(0, TIMESTEPS*2)
+stats.CalcR(start, end, R[:,:,1], Rstd[:,:,1], TRateE)
+l1, l2 = stats.Eigenvalue(R[:,:,1])
+c1, c2 = stats.Coeffs(l1, l2, N, R[:,:,1], fp)
+N = stats.PopN(c1, c2, l1, l2, R[:,:,1], N, TIMESTEPS, fp)
+print(l1, l2, c1, c2)
+print(R[:,:,1])
+
+plt.plot(Time2*0.025, N[0], 'b', label='T_an', alpha=0.5)
+plt.plot(Time*0.025, State[0], 'b-.', label='T_num')
+plt.plot(Time2*0.025, N[1], 'g', label='Q_an', alpha=0.5)
+plt.plot(Time*0.025, State[1], 'g--', label='Q_num')
+plt.legend()
+plt.title("Method 2, Angle " + angle + " deg, Energy " + Energy[energy] + " meV, Temp " + temperature + " K")
+plt.axis([0, 60, -.05, 1.05])
+plt.show()
+
+N[0][fp] = State[0][fp]
+N[1][fp] = State[1][fp]
+Time2 = np.arange(0, TIMESTEPS*2)
+stats.CalcR(start, end, R[:,:,2], Rstd[:,:,2], TRateA)
+l1, l2 = stats.Eigenvalue(R[:,:,2])
+c1, c2 = stats.Coeffs(l1, l2, N, R[:,:,2], fp)
+N = stats.PopN(c1, c2, l1, l2, R[:,:,2], N, TIMESTEPS, fp)
+print(l1, l2, c1, c2)
+print(R[:,:,2])
+
+plt.plot(Time2*0.025, N[0], 'b', label='T_an', alpha=0.5)
+plt.plot(Time*0.025, State[0], 'b-.', label='T_num')
+plt.plot(Time2*0.025, N[1], 'g', label='Q_an', alpha=0.5)
+plt.plot(Time*0.025, State[1], 'g--', label='Q_num')
+plt.legend()
+plt.title("Method 3, Angle " + angle + " deg, Energy " + Energy[energy] + " meV, Temp " + temperature + " K")
+plt.axis([0, 60, -.05, 1.05])
+plt.show()
+'''
+plt.plot(Time2*0.025, N[0], 'b', label='T_an', alpha=0.5)
+plt.plot(Time*0.025, State[0], 'b-.', label='T_num')
+plt.plot(Time2*0.025, N[1], 'g', label='Q_an', alpha=0.5)
+plt.plot(Time*0.025, State[1], 'g--', label='Q_num')
+plt.legend()
+plt.title("Angle " + angle + " deg, Energy " + Energy[energy] + " meV, Temp " + temperature + " K")
+plt.axis([0, 60, -.05, 1.05])
+plt.show()
+'''
+'''
+flname = in_folder + 'Pop' + name + '.dat'
+fl = open(flname, 'w')
+fl.write("#t T_an Q_an T_num Q_num\n")
+for t in range(0,TIMESTEPS*2):
+    try:
+        fl.write("%e\t %e\t %e\t %e\t %e\n" %(Time2[t]*0.025, N[0][t], N[1][t], State[0][t], State[1][t]))
+    except:
+        fl.write("%e\t %e\t %e\n" %(Time2[t]*0.025, N[0][t], N[1][t]))
+fl.close()
+'''
+sys.exit()
 
 # arrays for mean energy value, needed for equilibration analysis
 paraAvg = np.zeros([2,30])
