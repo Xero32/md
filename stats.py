@@ -40,10 +40,50 @@ def Eigenvalue(R):
     l2 = -0.5 * (math.fabs(R[0,0]) + math.fabs(R[1,1]) + math.sqrt( ((math.fabs(R[1,1]) - math.fabs(R[0,0]) ) ** 2)  + 4.* R[0,1] * R[1,0]) )
     return l1, l2
 
+def StdEigenvalue(R, Rstd):
+    print("calculate error on eigenvalues")
+    delL = Rstd[0,0] + Rstd[1,1] + R[1,0] * Rstd[0,1] + R[0,1] * Rstd[1,0]
+    print(delL)
+    return delL
+
 def Coeffs(l1, l2, N, R, te):
     c1 = 1. / (l1 -l2) * (N[0][te] - (l2-R[1,1]) * N[1][te] / R[1,0])
     c2 = -1. / (l1 -l2) * (N[0][te] - (l1-R[1,1]) * N[1][te] / R[1,0])
     return c1, c2
+
+def StdCoeffs(l1, l2, N, R, te, lstd, Rstd, total):
+    print("calculate error on coefficients")
+    denom = (l1-l2)
+    delN0 = StdDeviation(N[0][te], 0, total)
+    delN1 = StdDeviation(N[1][te], 0, total)
+    term_l1 = math.fabs(lstd / denom**2 * (N[0][te] - (l2-R[1,1]) * N[1][te]/R[1,0]))
+    print(term_l1)
+    term_l2 = math.fabs(lstd * (N[1][te]*l1 - N[1][te]*R[1,1] - N[0][te]*R[1,0]) / (R[1,0] * denom**2))
+    print(term_l2)
+    term_N0 = math.fabs(delN0 / denom)
+    print(term_N0)
+    term_N1 = math.fabs(delN1 * (R[1,1] - l2) / (R[1,0] * denom))
+    print(term_N1)
+    term_R11 = math.fabs(Rstd[1,1] * N[1][te] / (R[1,0] * denom))
+    print(term_R11)
+    term_R10 = math.fabs(Rstd[1,0] * N[1][te] * (l2 - R[1,1]) / (R[1,0]**2 * denom))
+    print(term_R10)
+    delC1 = term_l1 + term_l2 + term_N0 + term_N1 + term_R11 + term_R10
+
+    term_l1 = math.fabs(lstd * (N[1][te]*R[1,1] + N[0][te]*R[1,0] - l2*N[1][te]) / (R[1,0] * denom))
+    print(term_l1)
+    term_l2 = math.fabs(lstd * (N[0][te] - N[1][te]*(l1-R[1,1])) / (R[1,0]* denom))
+    print(term_l2)
+    term_N0 = math.fabs(delN0 / denom)
+    print(term_N0)
+    term_N1 = math.fabs(delN1 * (l1 - R[1,1]) / (R[1,0] * denom))
+    print(term_N1)
+    term_R11 = math.fabs(Rstd[1,1] * N[1][te] / (R[1,0] * denom))
+    print(term_R11)
+    term_R10 = math.fabs(Rstd[1,0] * N[1][te] * (l1 - R[1,1]) / (R[1,0]**2 * denom))
+    print(term_R10)
+    delC2 = term_l1 + term_l2 + term_N0 + term_N1 + term_R11 + term_R10
+    return delC1, delC2
 
 def PopN(c1, c2, l1, l2, R, N, Max, te):
     '''for t in range(0,Max):
@@ -82,3 +122,10 @@ def CalcR(start, end, R, Rstd, TRate):
     R[1,0] = AvgRate(start, end, TRate[0])
     Rstd[1,0] = StdRate(start, end, TRate[0], R[1,0])
     return R
+
+def ResTime(l1, N00, N10, R):
+    Delta = R[0,1] * R[1,0] / math.fabs(R[1,1])
+    deltalambda = math.fabs(R[1,1]) - math.fabs(R[0,0]) + 2 * Delta
+    N0 = (1. - (1./math.e)) * ( N00 + R[0,1] / R[1,1] * N10 ) + (N10 + R[1,0] * N00 / deltalambda)
+    tR = 1./l1 * math.log(1./math.e * (N00 + N10) / N0)
+    return tR * 6.53

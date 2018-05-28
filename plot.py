@@ -5,8 +5,8 @@ import math
 import numpy as np
 import numpy.ma as ma
 
-def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=6):
-    TIMESTEPS = 1200
+def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=2):
+    TIMESTEPS = len(T)
     DT = 1
     if smflag == 1:
         print("Smoothing Populations")
@@ -35,7 +35,7 @@ def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=6):
         plt.close(fig)
 
 def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag=1, pltflag=1, nu=10):
-    TIMESTEPS = 1200
+    TIMESTEPS = len(QT)
     DT = 1
     if smflag == 1:
         print("Smoothing Transition Populations")
@@ -91,14 +91,14 @@ def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, lblA='', lblB='', lbl
     if pltflag == 1:
         print("Plot Transition Rates")
         fig, ax = plt.subplots(num='a'+angle+'t'+temp+'e'+energy)
-        ax.plot(X*2.5e-2, Ta, '-', label = lblA)
-        ax.plot(X*2.5e-2, Tb, '-', label = lblB)
-        ax.plot(X*2.5e-2, Tc, '-', label = lblC)
-        ax.plot(X*2.5e-2, Td, '-', label = lblD)
+        ax.plot(X*2.5e-2, Ta, 'b-', label = lblA)
+        ax.plot(X*2.5e-2, Tb, 'C1-', label = lblB)
+        ax.plot(X*2.5e-2, Tc, 'g-', label = lblC)
+        ax.plot(X*2.5e-2, Td, 'r-', label = lblD)
         legend = ax.legend()
         plt.xlabel("time / ps")
         plt.ylabel(ylbl)
-        plt.axis([0,50,-2,5])
+        plt.axis([0,60,-0.3,3])
         plt.title("Angle " + angle + " deg, Energy " + energy + " meV, Temp " + temp + " K")
         #plt.savefig('./check.pdf')
         #if int(temp) == 80:
@@ -106,8 +106,8 @@ def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, lblA='', lblB='', lbl
         #else:
         #    plt.axis([0,30,0,.3])
         #plt.savefig('/home/becker/lammps/111/' + name + 'TransitionRate.pdf')
-        plt.show(block=True)
-        plt.close(fig)
+        #plt.show(block=True)
+        #plt.close(fig)
 
 #TODO
 def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', lbl='', Title='', binarr=[], avg=0, std=0,
