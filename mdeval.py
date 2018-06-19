@@ -1,6 +1,7 @@
 #mdeval.py
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy
 import math
 import sys
 import plot
@@ -8,121 +9,97 @@ import bounce
 import nrg
 import smooth
 import stats
+import argparse
+import params
+startps = 0
+endps = 0
+#TIMESTEPS, TIMESTEPS_RZ, TIMESTEPS_HLRN, TRAJ_COUNTER, HLRN_COUNTER, HLRN, NUM_OF_JOBS, NUM_OF_TRAJ, NUM_OF_TRAJ_RZ
+G_LIST = np.zeros(20)
+parser = argparse.ArgumentParser()
+startps, endps, angle, temperature, energy, HLRN = params.InpParams(parser)
+
 kB = 1.3806503e-23
 e0 = 1.60217662e-19
 
 Angle  = {'0':'0.00', '30':'0.52', '45':'0.80', '60':'1.05'}
-Temperature={'80':'80', '190':'190', '300':'300'}
+Temperature={'80':'80', '120':'120', '160':'160', '190':'190', '220':'220', '240':'240', '270':'270', '300':'300'}
+Energy = {'0':'12.95', '30':'16.027', '45':'21.71', '60':'36.55', '70':'70.0'}
 te = 15 // 0.025 #default
-try:
-    angle = sys.argv[1]
-    temperature = sys.argv[2]
-except:
-    angle = '30'
-    temperature = '300'
-    print('Opening default: a0.52t300e16.027')
-try:
-    energy = sys.argv[3]
-    Energy = {'12':'12.95', '16':'16.027', '21':'21.71', '36':'36.55', '70':'70.0'}
-except:
-    energy = angle
-    Energy = {'0':'12.95', '30':'16.027', '45':'21.71', '60':'36.55', '70':'70.0'}
+TIMESTEPS_RZ = 120000 // 100
+TIMESTEPS_HLRN = 120000 // 100
+NUM_OF_TRAJ_RZ = 200
+NUM_OF_TRAJ = 200
+
 jobs = (7227490, 7227494, 7227495, 7227496, 7227497)
 if energy != '70':
-    if int(temperature) == 80:
-        jobs = (7094790, 7107184, 7107185, 7107186, 7107187, 7107195, 7131096, 7131097, 7131115, 7131116)
-        #jobs = (7279669, 7279673, 7279675, 7279676, 7279677)
-        te = 11 // 0.025 #T=80 K
-    elif int(temperature) == 190:
-        jobs = (7237382, 7237376, 7237379, 7237380, 7237381)
-        te = 15 // 0.025 #T=190 K
-    elif int(temperature) == 300:
-        #jobs = (7094785, 7107197, 7107198, 7107199, 7107200, 7107201, 7131101, 7131102, 7131113, 7131114)
-        jobs = (1903430, 1903431, 1903432, 1904568) # hlrn jobs
-        te = 15 // 0.025 #T=300 K
+    TIMESTEPS_RZ, TIMESTEPS_HLRN, NUM_OF_TRAJ_RZ, NUM_OF_TRAJ, nbnc, jobs = params.Parameters(temperature, HLRN)
+
 name = 'a'+Angle[angle]+'t'+Temperature[temperature]+'e'+Energy[energy]
 ''' Ar-Pt analysis
 jobs = (7331694, 7331705, 7331706, 7331713, 7331723, 7344079, 7344080, 7344081)
 name = 'Pta'+Angle[angle]+'t'+Temperature[temperature]+'e'+Energy[energy]
 '''
 in_folder = '/home/becker/lammps/111/' + name + '/'
-in_folder = '/home/becker/lammps/111/AuLong/' + name + '/'
+#in_folder = '/home/becker/lammps/111/AuLong/' + name + '/'
 Temp = int(temperature)
-TIMESTEPS = 120000 // 100
-TIMESTEPS = 200000 // 100
+
+
 DT = 0.00025
 dt = DT * 100
-NUM_OF_TRAJ = 200
-NUM_OF_TRAJ = 500
 NUM_OF_JOBS = len(jobs)
 #SCALING = 1.0/(NUM_OF_JOBS*NUM_OF_TRAJ)
 SCALING = 1
-TOTAL = np.zeros([TIMESTEPS])
-Time = np.arange(0,TIMESTEPS,1)
-State = np.zeros([3,TIMESTEPS]) # T, Q, C
-Trans = np.zeros([6,TIMESTEPS]) # QT, CT, TQ, CQ, TC, QC
-TRate = np.zeros([6,TIMESTEPS]) # QT, CT, TQ, CQ, TC, QC
-Refl = np.zeros([TIMESTEPS])
+dataflag = 0
+#TOTAL = np.zeros([TIMESTEPS_HLRN])
+Time = np.arange(0,TIMESTEPS_HLRN,1)
+State = np.zeros([3,TIMESTEPS_HLRN]) # T, Q, C
+Trans = np.zeros([6,TIMESTEPS_HLRN]) # QT, CT, TQ, CQ, TC, QC
+TRate = np.zeros([6,TIMESTEPS_HLRN]) # QT, CT, TQ, CQ, TC, QC
+Refl = np.zeros([TIMESTEPS_HLRN])
 Bounce = np.zeros([13,80,NUM_OF_JOBS*NUM_OF_TRAJ])
 # nb, tm, s1, t1, E_xy.i, E_z.i, V.i, s2, t2, E_xy.f, E_z.f, V.f, refl_flag
-
+TRAJ_COUNTER = 0
+HLRN_COUNTER = 0
+hlrnflag = 0
+globalcounter = 0
+falsecounter = 0
 TOTAL = NUM_OF_JOBS*NUM_OF_TRAJ
 bounceavg = np.zeros([TOTAL])
 
 print('Evaluating Data for', name)
 for ctr, jb in enumerate(jobs):
     for d in range(1, NUM_OF_TRAJ+1):
-        flag = 0
-        # allocate Trajectory array
-        # Ez, Exy, V, vz
-        Traj = np.zeros([4,TIMESTEPS])
+        # read files
+        Traj, TIMESTEPS, hlrnflag = params.Readfiles(ctr, d, jb, name, in_folder, TIMESTEPS_HLRN, TIMESTEPS_RZ, NUM_OF_TRAJ_RZ)
 
-        # open file for potential energy;
-        # keep in mind that relevant information is only stored in every tenth line
-        name_pe = in_folder + str(jb) + '/' + str(d) + ".lammpstrj"
-        name_pe = in_folder + str(jb) + '.bbatch.hsn.hlrn.de/' + str(d) + ".lammpstrj"
-        fl_pe = open(name_pe, 'r')
-        j = 1
-        for i, line in enumerate(fl_pe):
-            assert(j <= 10)
-            if j == 10:
-                idx = i//10
-                epot = float(line.split()[0])
-                Traj[2, idx-1] = epot*2.0
-                j = 1
-            else:
-                j += 1
-        #end for (potential file)
-        # open file with trajectory information;
-        # here except for the header every line contains information for the
-        # corresponding timestep
-        name_kin = in_folder + str(jb) + '/' + str(d) + ".dat"
-        name_kin = in_folder + str(jb) + '.bbatch.hsn.hlrn.de/' + str(d) + ".dat"
-        fl_kin = open(name_kin, 'r')
-        for a,line in enumerate(fl_kin):
-            b = a - 1
-            if a == 0:
-                continue
+        TRAJ_COUNTER += 1
+        if hlrnflag == 1:
+            HLRN_COUNTER += 1
+        jj = globalcounter
+        globalcounter += 1
 
-            t, x, y, z, vx, vy, Traj[3,b], en = line.split()
-            Traj[0,b] = bounce.normalKE(float(Traj[3,b]))
-            Traj[1,b] = bounce.parallelKE(float(vx), float(vy))
-            assert(Traj[0,b] >= 0)
-            assert(Traj[1,b] >= 0)
-        #end for (kinetic file)
-        jj = ctr*NUM_OF_TRAJ + d - 1
-        nb = bounce.Countbounces(Traj[3,:], Traj[1,:], Traj[0,:], Traj[2,:], Bounce[:,:,jj],jj)
+        nb = bounce.Countbounces(Traj[3,:], Traj[1,:], Traj[0,:], Traj[2,:], Bounce[:,:,jj], jj, TIMESTEPS)
+
         if nb == -9999:
+            falsecounter += 1
             TOTAL -= 1
+            TRAJ_COUNTER -= 1
+            if hlrnflag == 1:
+                HLRN_COUNTER -= 1
             continue
 
         for i in range(0,nb):
             try:
-                flag = bounce.Population(i, Bounce[:,i-1,jj], Bounce[:,i,jj], Bounce[:,i+1,jj], State, Trans, Refl, 1., jj)
+                flag = bounce.Population(i, Bounce[:,i-1,jj], Bounce[:,i,jj], Bounce[:,i+1,jj], State, Trans, Refl, 1., jj, TIMESTEPS)
             except:
-                flag = bounce.Population(i, Bounce[:,i,jj], Bounce[:,i,jj], Bounce[:,i+1,jj], State, Trans, Refl, 1., jj)
+                flag = bounce.Population(i, Bounce[:,i,jj], Bounce[:,i,jj], Bounce[:,i+1,jj], State, Trans, Refl, 1., jj, TIMESTEPS)
             if flag == -6000 or flag == -5000:
                 TOTAL -= 1
+                TRAJ_COUNTER -= 1
+                falsecounter += 1
+                if hlrnflag == 1:
+                    HLRN_COUNTER -= 1
+                    falsecounter += 1
                 bounceavg[jj] = 10000
                 print(str(flag))
                 break
@@ -133,29 +110,21 @@ for ctr, jb in enumerate(jobs):
                 Bounce[12,i,jj] = flag
                 break
         bounceavg[jj] = nb
-        fl_kin.close()
-        fl_pe.close()
 
     #end for (trajectory)
 #end for (job list)
 
-State[0,:] /= TOTAL
-State[1,:] /= TOTAL
-State[2,:] /= TOTAL
+print("Found %d miscounted trajectories in %d total trajectories and deleted them." %(falsecounter,TRAJ_COUNTER+falsecounter) )
+print("TIMESTEPS: ", TIMESTEPS)
+print("HLRN trajectories: ", HLRN_COUNTER)
 
-Trans[0,:] /= TOTAL
-Trans[1,:] /= TOTAL
-Trans[2,:] /= TOTAL
-Trans[3,:] /= TOTAL
-Trans[4,:] /= TOTAL
-Trans[5,:] /= TOTAL
-Refl[:] /= TOTAL
+stats.Scaling(State, Trans, Refl, TRAJ_COUNTER, HLRN_COUNTER, TIMESTEPS_RZ, TIMESTEPS_HLRN)
 
-StateNew = np.zeros([3, TIMESTEPS])
-StateSum = np.zeros([3, TIMESTEPS])
-TransNew = np.zeros([6, TIMESTEPS])
-TRateE = np.zeros([6, TIMESTEPS])
-TRateA = np.zeros([6, TIMESTEPS])
+StateNew = np.zeros([3, TIMESTEPS_HLRN])
+StateSum = np.zeros([3, TIMESTEPS_HLRN])
+TransNew = np.zeros([6, TIMESTEPS_HLRN])
+TRateE   = np.zeros([6, TIMESTEPS_HLRN])
+TRateA   = np.zeros([6, TIMESTEPS_HLRN])
                 #4       2              0           1
 StateSum[0] = Trans[4] + Trans[2] - Trans[0] - Trans[1]
                 #5            0           2           3
@@ -163,240 +132,145 @@ StateSum[1] = Trans[5] + Trans[0] - Trans[2] - Trans[3]
 #C              CT          CQ          TC      QC
 StateSum[2] = 1 + Trans[1] + Trans[3] - Trans[4] - Trans[5]
 
-StickCoeff = stats.InitSticking(Refl, float(Angle[angle]),float(Temperature[temperature]), float(Energy[energy]), TOTAL)
+StickCoeff = stats.InitSticking(Refl, float(Angle[angle]),float(Temperature[temperature]), float(Energy[energy]), TRAJ_COUNTER)
 
-plot.Populations(angle, temperature, Energy[energy], Time, State[0], State[1], State[2], smflag=1, pltflag=0)
-Trans[0], Trans[2], Trans[1], Trans[3], Trans[4], Trans[5] = plot.TransitionPopulations(angle, temperature, Energy[energy],
-Time, Trans[0], Trans[2], Trans[1], Trans[3], np.zeros([TIMESTEPS]),np.zeros([TIMESTEPS]), smflag=0, pltflag=0)
+plot.Populations(angle, temperature, Energy[energy], Time, State[0], State[1], State[2], smflag=1, pltflag=1, hlrn=HLRN)
+num = 200
+StateComp = np.zeros([3, num])
+for i in range(0,3):
+    StateComp[i], wl, num = smooth.Compress(State[i], num=num)
 
-'''
-print("Plot Summed Populations")
-fig, ax = plt.subplots()
-ax.plot(Time*2.5e-2, StateSum[0], '-', label = 'Trapped')
-ax.plot(Time*2.5e-2, State[0], '-', label = 'TrappedNum')
-ax.plot(Time*2.5e-2, StateSum[1], '-', label = 'Quasi')
-ax.plot(Time*2.5e-2, State[1], '-', label = 'QuasiNum')
-ax.plot(Time*2.5e-2, StateSum[2], '-', label = 'Cont')
-ax.plot(Time*2.5e-2, State[2], '-', label = 'ContNum')
-ax.plot(Time*2.5e-2, StateSum[0] + StateSum[1] + StateSum[2], '-', label = 'Norm check')
-ax.plot(Time*2.5e-2, State[0] + State[1] + State[2], '-', label = 'Norm check Num')
-legend = ax.legend()
-plt.xlabel("time / ps")
-plt.ylabel("")
-plt.title("Comparison of numerical and summed populations")
-plt.show(block=True)
-plt.close(fig)
-'''
+for i in range(0,6):
+    Trans[i, :num], wl, num = smooth.Compress(Trans[i], num=num)
+
+TimePrime = np.arange(0,TIMESTEPS_HLRN, wl)
+
+plot.TransitionPopulations(angle, temperature, Energy[energy],
+TimePrime, Trans[0, :num], Trans[2, :num], Trans[1, :num], Trans[3, :num], smflag=1, pltflag=1, hlrn=HLRN)
+
 
 '''State = np.zeros([3,TIMESTEPS]) # T, Q, C
 Trans = np.zeros([4,TIMESTEPS]) # QT, CT, TQ, CQ
 TRate = np.zeros([4, TIMESTEPS]) # QT, CT, TQ, CQ, TC, QC'''
-
-#TRate[0] = bounce.TransitionRate(1, State[0], Trans[0], TRate[0]) # QT
-#TRate[1] = bounce.TransitionRate(1, State[0], Trans[1], TRate[1]) # CT
-#TRate[2] = bounce.TransitionRate(1, State[1], Trans[2], TRate[2]) # TQ
-#TRate[3] = bounce.TransitionRate(1, State[1], Trans[3], TRate[3]) # CQ
-#TRate[4] = bounce.TransitionRate(1, State[2], Trans[4], TRate[4]) # TC
-#TRate[5] = bounce.TransitionRate(1, State[2], Trans[5], TRate[5]) # QC
-
+TRate = np.zeros([6, num])
 print("Calculate Transition Rates")
 d = 0
+maxps = TIMESTEPS * dt
+startdiff = 10
 for i in range(0,6):
-    TRate[i] = bounce.DifferentiateT(50, State[d], Trans[i], TRate[i])
+    TRate[i] = bounce.DifferentiateT(1, StateComp[d], Trans[i, :num], TRate[i], wl, startdiff, maxps)
     d += i % 2
 
-d = 0
+num2 = 50
 for i in range(0,6):
-    TRateE[i] = bounce.TransitionRateE(Trans[i], State[d], te, TRateE[i], TIMESTEPS)
-    d += i % 2
+    TRate[i, :num2], wl2, num2 = smooth.Compress(TRate[i], num=num2)
 
+TimePrime2 = np.arange(0, TIMESTEPS_HLRN, wl*wl2)
 
-d = 0
-for i in range(0,6):
-    TRateA[i] = bounce.AlternTransition(Trans[i], State[d], int(15//0.025), TRateA[i], TIMESTEPS)
-    d += i % 2
+plot.TransitionRate(angle, temperature, Energy[energy], TimePrime2, TRate[0, :num2], TRate[2, :num2], TRate[1, :num2], TRate[3, :num2],
+lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=1, pltflag=0, ylbl='T / t\u2080\u207B\u00B9', hlrn=HLRN)
 
+fp = int(20 // 0.025) #fixpoint aka t_e
 
-left = State[0,-100] * TRate[0,-100]
-right = State[1,-100] * TRate[2,-100] + State[1,-100] * TRate[3,-100]
-print('N_T * T_QT \t\tvs.\t N_Q * (T_TQ + T_CQ)')
-print(left, '\tvs.\t', right)
-plot.TransitionRate(angle, temperature, Energy[energy], Time, TRate[0], TRate[2], TRate[1], TRate[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=0, ylbl='T / t\u2080\u207B\u00B9')
-plot.TransitionRate(angle, temperature, Energy[energy], Time, TRateE[0], TRateE[2], TRateE[1], TRateE[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=0)
-plot.TransitionRate(angle, temperature, Energy[energy], Time, TRateA[0], TRateA[2], TRateA[1], TRateA[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=0, ylbl='Alternative Calculation')
-
-fp = 800 #fixpoint aka t_e
-StateNew[0] = bounce.IntegratePopulationT(StateNew[0], State, TRate, 1)
-StateNew[1] = bounce.IntegratePopulationQ(StateNew[1], State, TRate, 1)
-StateNew[2] = bounce.IntegratePopulationC(StateNew[2], State, TRate, 1)
-plot.Populations(angle, temperature, Energy[energy], Time, StateNew[0], StateNew[1], StateNew[2], smflag=0, pltflag=0)
-plot.Populations(angle, temperature, Energy[energy], Time, StateSum[0], StateSum[1], StateSum[2], smflag=0, pltflag=0)
 R = np.zeros([2,2,3])
 Rstd = np.zeros([2,2,3])
-start = int(20//0.025)
-end = TIMESTEPS - int(1.2//dt) # account for seemingly unphysical dropoff in T Rates towards the end of sim time
-# disregard last 1.2 ps
-N = np.zeros([2, TIMESTEPS*2])
 
-#TRate[0] *= 2.
-'''
-T_QT = 0.01
-T_TQ = 1.8
-T_CQ = 0.13
-T_CT = 0.0
-R[0,0,0] = -(T_CT+T_QT)
-R[0,1,0] = T_TQ
-R[1,0,0] = T_QT
-R[1,1,0] = -(T_CQ+T_TQ)
-'''
+start = int(startps * num2 / maxps)
+end = int(endps * num2 / maxps)
+
+print("maxps: ", maxps)
+print("num: ", num)
+print("num2: ", num2)
+print("start: ", start, " end: ", end)
+
 def printStd(a,b):
-    print("%.4f +  +/- %.4f" %(a,b))
+    print("%.4f +/- %.4f" %(a,b))
+
+N, l1, l2, delL, c1, dc1, c2, dc2, Time2 = stats.CalcSolution(fp, State, TIMESTEPS, start, end, R, Rstd, TRate, TRAJ_COUNTER, num2)
 
 
-N[0][fp] = State[0][fp]
-N[1][fp] = State[1][fp]
-Time2 = np.arange(0, TIMESTEPS*2)
-stats.CalcR(start, end, R[:,:,0], Rstd[:,:,0], TRate)
-l1, l2 = stats.Eigenvalue(R[:,:,0])
-delL = stats.StdEigenvalue(R[:,:,0], Rstd[:,:,0])
-c1, c2 = stats.Coeffs(l1, l2, N, R[:,:,0], fp)
-dc1, dc2 = stats.StdCoeffs(l1, l2, N, R[:,:,0], fp, delL, Rstd[:,:,0], TOTAL)
-N = stats.PopN(c1, c2, l1, l2, R[:,:,0], N, TIMESTEPS, fp)
-print("Eigenvalues:")
-printStd(l1,delL)
-printStd(l2,delL)
-printStd(c1,dc1)
-printStd(c2,dc2)
-#print(l1, l2, c1, c2)
-print(N[0][fp], N[1][fp])
-print(R[:,:,0])
-print(Rstd[:,:,0])
 tR = stats.ResTime(l1, N[0][fp], N[1][fp], R[:,:,0])
+tRstd = stats.StdResTime(l1, delL, N[0][fp], N[1][fp], R[:,:,0])
 tRsimple = 1./math.fabs(l1) * 6.53
 U = 90 * 1e-3 * e0
 tP = tR * math.exp(-U / (kB*Temp))
-print('tR =  ', tR)
-print('tRsimple / tR = ', tRsimple/tR)
-print('tP = ', tP)
+print('\ntR:')
+printStd(tR, tRstd)
+print('\n')
+
 horizontal = np.zeros([4,len(Time)])
 horizontal[0] = np.array([R[1,0,0] for i in range(len(Time))])
 horizontal[1] = np.array([R[0,1,0] for i in range(len(Time))])
 horizontal[2] = np.array([-R[0,0,0]-R[1,0,0] for i in range(len(Time))])
 horizontal[3] = np.array([-R[1,1,0]-R[0,1,0] for i in range(len(Time))])
 
-#fig, ax = plt.subplots(num='a'+angle+'t'+temperature+'e'+Energy[energy])
-plot.TransitionRate(angle, temperature, Energy[energy], Time, TRate[0], TRate[2], TRate[1], TRate[3], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=0, pltflag=1, ylbl='T / t\u2080\u207B\u00B9')
-plt.plot(Time*0.025, horizontal[0], 'b--', label='T_QTavg')
-plt.plot(Time*0.025, horizontal[1], 'C1--', label='T_TQavg')
-plt.plot(Time*0.025, horizontal[2], 'g--', label='T_CTavg')
-plt.plot(Time*0.025, horizontal[3], 'r--', label='T_CQavg')
-plt.legend()
-plt.show()
-#plt.plot(Time*0.025, TRate[0], label='T_QT')
-#plt.plot(Time*0.025, TRate[1], label='T_TQ')
-#plt.plot(Time*0.025, TRate[2], label='T_CT')
-#plt.plot(Time*0.025, TRate[3], label='T_CQ')
+left = State[0,-1000] * horizontal[0,-1000]
+right = State[1,-1000] * horizontal[2,-1000] + State[1,-1000] * horizontal[3,-1000]
+print('N_T * T_QT \t\tvs.\t N_Q * (T_TQ + T_CQ)')
+print(left, '\tvs.\t', right)
 
-#fl = open('resTime.dat','a')
-#fl.write("%d %d %e %e %e %e\n" %(int(angle), Temp, float(Energy[energy]), tR, tRsimple/tR, tP))
+#fig, ax = plt.subplots(num='a'+angle+'t'+temperature+'e'+Energy[energy])
+
+plot.TransitionRate(angle, temperature, Energy[energy], TimePrime2, TRate[0, :num2], TRate[2, :num2], TRate[1, :num2], TRate[3, :num2], lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ',
+smflag=0, pltflag=1, ylbl='T / t\u2080\u207B\u00B9', avgflag=1, start=start, end=end, hlrn=HLRN)
+
+#fl = open("ResTime.dat", 'a')
+#fl.write("%2d %3d %.3f %.4f %.4f %.4f %.4f\n" %(int(angle), int(temperature), float(Energy[energy]), tR, tRstd, tRsimple/tR, tP))
 #fl.close()
+#
+if HLRN == 1:
+    nameA = 'a'+angle+'t'+Temperature[temperature]+'e'+Energy[energy]+'HLRN'
+else:
+    nameA = 'a'+angle+'t'+Temperature[temperature]+'e'+Energy[energy]
 
 plt.plot(Time2*0.025, N[0], 'b', label='T_an', alpha=0.5)
-plt.plot(Time*0.025, State[0], 'b-.', label='T_num')
+plt.plot(TimePrime*0.025, StateComp[0], 'b-.', label='T_num')
 plt.plot(Time2*0.025, N[1], 'g', label='Q_an', alpha=0.5)
-plt.plot(Time*0.025, State[1], 'g--', label='Q_num')
+plt.plot(TimePrime*0.025, StateComp[1], 'g--', label='Q_num')
 plt.legend()
 plt.title("Method 1, Angle " + angle + " deg, Energy " + Energy[energy] + " meV, Temp " + temperature + " K")
 plt.axis([0, 60, -.05, 1.05])
-plt.show()
-sys.exit()
+plt.tight_layout()
+#plt.savefig('/home/becker/lammps/tmpplot/' + nameA + 'Solution.pdf')
+plt.show(block=True)
+plt.close()
 
-N[0][fp] = State[0][fp]
-N[1][fp] = State[1][fp]
-Time2 = np.arange(0, TIMESTEPS*2)
-stats.CalcR(start, end, R[:,:,1], Rstd[:,:,1], TRateE)
-l1, l2 = stats.Eigenvalue(R[:,:,1])
-c1, c2 = stats.Coeffs(l1, l2, N, R[:,:,1], fp)
-N = stats.PopN(c1, c2, l1, l2, R[:,:,1], N, TIMESTEPS, fp)
-print(l1, l2, c1, c2)
-print(R[:,:,1])
-
-plt.plot(Time2*0.025, N[0], 'b', label='T_an', alpha=0.5)
-plt.plot(Time*0.025, State[0], 'b-.', label='T_num')
-plt.plot(Time2*0.025, N[1], 'g', label='Q_an', alpha=0.5)
-plt.plot(Time*0.025, State[1], 'g--', label='Q_num')
-plt.legend()
-plt.title("Method 2, Angle " + angle + " deg, Energy " + Energy[energy] + " meV, Temp " + temperature + " K")
-plt.axis([0, 60, -.05, 1.05])
-plt.show()
-
-N[0][fp] = State[0][fp]
-N[1][fp] = State[1][fp]
-Time2 = np.arange(0, TIMESTEPS*2)
-stats.CalcR(start, end, R[:,:,2], Rstd[:,:,2], TRateA)
-l1, l2 = stats.Eigenvalue(R[:,:,2])
-c1, c2 = stats.Coeffs(l1, l2, N, R[:,:,2], fp)
-N = stats.PopN(c1, c2, l1, l2, R[:,:,2], N, TIMESTEPS, fp)
-#print(l1, l2, c1, c2)
-#print(R[:,:,2])
-
-plt.plot(Time2*0.025, N[0], 'b', label='T_an', alpha=0.5)
-plt.plot(Time*0.025, State[0], 'b-.', label='T_num')
-plt.plot(Time2*0.025, N[1], 'g', label='Q_an', alpha=0.5)
-plt.plot(Time*0.025, State[1], 'g--', label='Q_num')
-plt.legend()
-plt.title("Method 3, Angle " + angle + " deg, Energy " + Energy[energy] + " meV, Temp " + temperature + " K")
-plt.axis([0, 60, -.05, 1.05])
-plt.show()
-'''
-plt.plot(Time2*0.025, N[0], 'b', label='T_an', alpha=0.5)
-plt.plot(Time*0.025, State[0], 'b-.', label='T_num')
-plt.plot(Time2*0.025, N[1], 'g', label='Q_an', alpha=0.5)
-plt.plot(Time*0.025, State[1], 'g--', label='Q_num')
-plt.legend()
-plt.title("Angle " + angle + " deg, Energy " + Energy[energy] + " meV, Temp " + temperature + " K")
-plt.axis([0, 60, -.05, 1.05])
-plt.show()
-'''
-'''
-flname = in_folder + 'Pop' + name + '.dat'
-fl = open(flname, 'w')
-fl.write("#t T_an Q_an T_num Q_num\n")
-for t in range(0,TIMESTEPS*2):
-    try:
-        fl.write("%e\t %e\t %e\t %e\t %e\n" %(Time2[t]*0.025, N[0][t], N[1][t], State[0][t], State[1][t]))
-    except:
-        fl.write("%e\t %e\t %e\n" %(Time2[t]*0.025, N[0][t], N[1][t]))
-fl.close()
-'''
-sys.exit()
+#sys.exit()
 
 # arrays for mean energy value, needed for equilibration analysis
 paraAvg = np.zeros([2,30])
 normAvg = np.zeros([2,30])
+kinAvg  = np.zeros([2,30])
 wf = 0
+pf = 0
 filename = in_folder + 'E' + '.dat'
-for n in range(0,30):
-
+for n in range(0,30,5):
     #sprint(str(n))
     delta_T = np.zeros([NUM_OF_JOBS*NUM_OF_TRAJ])
     delta_Q = np.zeros([NUM_OF_JOBS*NUM_OF_TRAJ])
     delta_C = np.zeros([NUM_OF_JOBS*NUM_OF_TRAJ])
-    E_T = np.zeros([4, NUM_OF_JOBS*NUM_OF_TRAJ])
-    E_Q = np.zeros([4, NUM_OF_JOBS*NUM_OF_TRAJ])
-    E_C = np.zeros([4, NUM_OF_JOBS*NUM_OF_TRAJ])
+    E_T = np.zeros([5, NUM_OF_JOBS*NUM_OF_TRAJ])
+    E_Q = np.zeros([5, NUM_OF_JOBS*NUM_OF_TRAJ])
+    E_C = np.zeros([5, NUM_OF_JOBS*NUM_OF_TRAJ])
     #TODO
     #filename = in_folder + 'deltaE' + str(n) + '.dat'
     t,q,c = nrg.EnergyLoss(n, delta_T, delta_Q, delta_C, NUM_OF_JOBS*NUM_OF_TRAJ, Bounce[4:7,:,:], Bounce[9:12,:,:], Bounce[7,:,:], Bounce[12,:,:])
     plot.Histogram(-130,150,141, delta_T[:t], delta_Q[:q], delta_C[:c], subplts=1, lblA='delta T', lblB='delta Q', lblC='delta C', lbl='Total delta E',
-    pltflag=0, sm_flag=1, nu=2, writeflag=wf, flname=filename, nb=n, action=0, scl=1e1)
+    pltflag=pf, sm_flag=1, nu=2, writeflag=wf, flname=filename, nb=n, action=0, scl=1e1)
     #nrg.PlotHist(-120,140,80, delta_T[:t], delta_Q[:q], delta_C[:c], subplts=1, lblA='delta T', lblB='delta Q', lblC='delta C', lbl='Total delta E', pltflag=1, sm_flag=1)
+
+    t,q,c = nrg.kinEnergyDistr(n, E_T[4,:], E_Q[4,:], E_C[4,:], NUM_OF_JOBS*NUM_OF_TRAJ, Bounce[9:12,:,:], Bounce[7,:,:], Bounce[12,:,:])
+    *waste, average, stdev = plot.Histogram(0,1000,100, E_T[4][:t], E_Q[4][:q], E_C[4][:c], lblA='T', lblB='Q', lblC='C', lbl='Kinetic Energy Distr',
+    edge='pos', edgeA='pos', edgeB='pos', edgeC='pos', Title='KE, nb= '+str(n),
+    subplts=0, sm_flag=1, pltflag=pf, nu=2, writeflag=wf, flname=filename, avg=1, std=1, nb=n, action=5, scl=1e1)
+    kinAvg[0,n] = average
+    kinAvg[1,n] = stdev
 
     #filename = in_folder + 'paraE' + str(n) + '.dat'
     t,q,c = nrg.paraEnergyDistr(n, E_T[0,:], E_Q[0,:], E_C[0,:], NUM_OF_JOBS*NUM_OF_TRAJ, Bounce[9:12,:,:], Bounce[7,:,:], Bounce[12,:,:])
     *waste, average, stdev = plot.Histogram(0,80,80, E_T[0][:t], E_Q[0][:q], E_C[0][:c], lblA='T', lblB='Q', lblC='C', lbl='Parallel Energy Distr',
     edge='pos', edgeA='pos', edgeB='pos', edgeC='pos',
-    subplts=1, sm_flag=1, pltflag=0, nu=1+math.sin(n/30*math.pi/2), writeflag=wf, flname=filename, avg=1, std=1, nb=n, action=1, scl=1e1)
+    subplts=1, sm_flag=1, pltflag=pf, nu=1+math.sin(n/30*math.pi/2), writeflag=wf, flname=filename, avg=1, std=1, nb=n, action=1, scl=1e1)
     # with the sine function we increase the smoothing with growing n, as then the number of existing trajectories decreases
     paraAvg[0,n] = average
     paraAvg[1,n] = stdev    # so far in plot.Histogram() we define stdev as (<x^2> - <x>^2)/N. don't know, if it's true
@@ -405,22 +279,20 @@ for n in range(0,30):
     t,q,c = nrg.normEnergyDistr(n, E_T[1,:], E_Q[1,:], E_C[1,:], NUM_OF_JOBS*NUM_OF_TRAJ, Bounce[9:12,:,:], Bounce[7,:,:], Bounce[12,:,:])
     *waste, average, stdev = plot.Histogram(0,200,100, E_T[1][:t], E_Q[1][:q], E_C[1][:c], subplts=1, lblA='T', lblB='Q', lblC='C', lbl='Normal Energy Distr',
     edge='pos', edgeA='pos', edgeB='pos', edgeC='pos', avg=1, std=1,
-    sm_flag=1, pltflag=0, nu=2, writeflag=1, flname=filename, nb=n, action=2, scl=1e1)
+    sm_flag=1, pltflag=pf, nu=2, writeflag=wf, flname=filename, nb=n, action=2, scl=1e1)
     normAvg[0,n] = average
     normAvg[1,n] = stdev    # so far in plot.Histogram() we define stdev as (<x^2> - <x>^2)/N. don't know, if it's true
                             # somehow we need to incorporate the lack of trajectories at later bounces
 
     #filename = in_folder + 'potE' + str(n) + '.dat'
     t,q,c = nrg.potEnergyDistr(n, E_T[2,:], E_Q[2,:], E_C[2,:], NUM_OF_JOBS*NUM_OF_TRAJ, Bounce[9:12,:,:], Bounce[7,:,:], Bounce[12,:,:])
-    plot.Histogram(-140,0,200, E_T[2][:t], E_Q[2][:q], E_C[2][:c], subplts=1, lblA='T', lblB='Q', lblC='C', lbl='Potential Energy Distr', sm_flag=1, pltflag=0, nu=1, writeflag=wf, flname=filename,
+    plot.Histogram(-140,0,200, E_T[2][:t], E_Q[2][:q], E_C[2][:c], subplts=1, lblA='T', lblB='Q', lblC='C', lbl='Potential Energy Distr', sm_flag=1, pltflag=pf, nu=1, writeflag=wf, flname=filename,
     nb=n, action=3, scl=1e1)
 
     #filename = in_folder + 'totE' + str(n) + '.dat'
     t,q,c = nrg.totEnergyDistr(n, E_T[3,:], E_Q[3,:], E_C[3,:], NUM_OF_JOBS*NUM_OF_TRAJ, Bounce[9:12,:,:], Bounce[7,:,:], Bounce[12,:,:])
     plot.Histogram(-180,180,145, E_T[3][:t], E_Q[3][:q], E_C[3][:c], subplts=1, lblA='T', lblB='Q', lblC='C', lbl='Total Energy Distr', edge='none', edgeA='neg', edgeB='pos', edgeC='pos',
-    sm_flag=1, pltflag=0, nu=2, writeflag=wf, flname=filename, nb=n, action=4, scl=1e1)
-
-
+    sm_flag=1, pltflag=pf, nu=2, writeflag=wf, flname=filename, nb=n, action=4, scl=1e1)
 
 
 #evaluate how many bounces typically appear in a trajectory with fixed timesteps at Nt = 120000
@@ -429,62 +301,18 @@ bouncehist = np.histogram(bounceavg, density=False, bins=sequence)
 
 #look at how the number of trajectories diminishes as nb grows
 bouncecumulative = np.cumsum(bouncehist[0])
-#plt.plot(np.arange(0,39,1), (NUM_OF_JOBS*NUM_OF_TRAJ)-bouncecumulative)
-#plt.xlabel("Bounces")
-#plt.ylabel("Trajectories")
-#plt.show()
-'''
-'''
+
 #calc StdDev for energy development over time
-for n in range(0,30):
+for n in range(0,1):
     paraAvg[1,n] = stats.stdDev(Bounce[9,n,:], paraAvg[0,n], (NUM_OF_JOBS*NUM_OF_TRAJ)-bouncecumulative[n])
     normAvg[1,n] = stats.stdDev(Bounce[10,n,:], normAvg[0,n], (NUM_OF_JOBS*NUM_OF_TRAJ)-bouncecumulative[n])
 
-'''
 #calc average bounce time + stddev
 TimeArr = np.zeros([3,80])
-TimeArr = bounce.BncTime(Bounce, TOTAL, 30, TIMESTEPS, TimeArr)
-
-plt.errorbar(TimeArr[0][:30]*2.5e-2, np.arange(0,30,1), xerr=TimeArr[1][:30]*2.5e-2)
+TimeArr = bounce.BncTime(Bounce, TOTAL, nbnc, TIMESTEPS, TimeArr)
+timebetween = bounce.TimeBetwBounces(TimeArr[:,:nbnc]) * 2.5e-2
+print(timebetween)
+plt.errorbar(TimeArr[0][:nbnc]*2.5e-2, np.arange(0,nbnc,1), xerr=TimeArr[1][:nbnc]*2.5e-2)
 plt.xlabel("Time / ps")
 plt.ylabel("Bounces")
 plt.show()
-
-
-filename = in_folder + 'Bnc.dat'
-fbnc = open(filename, 'w')
-fbnc.write("# nb tm delta_tm num of trajectories\n")
-
-for i in range(0,30):
-    fbnc.write("%e %e %e %e\n" %(i, TimeArr[0,i]*2.5e-2, TimeArr[1,i]*2.5e-2, TimeArr[2,i]))
-fbnc.close()
-
-
-print('Parallel Component:')
-for i in range(0,30):
-    print(str(paraAvg[0,i]) + ' +/- ' + str(paraAvg[1,i]))
-
-print('\nNormal Component:')
-for i in range(0,30):
-    print(str(normAvg[0,i]) + ' +/- ' + str(normAvg[1,i]))
-
-
-plt.plot(np.arange(0,30,1), paraAvg[0])
-plt.show()
-plt.plot(np.arange(0,30,1), normAvg[0])
-plt.show()
-'''
-
-filename = in_folder + 'paraEofBnc.dat'
-BncEpara = open(filename, 'w')
-BncEpara.write('# nb E deltaE\n')
-for i in range(0,30):
-    BncEpara.write("%e %e %e\n" %(i, paraAvg[0,i], paraAvg[1,i]))
-BncEpara.close()
-
-filename = in_folder + 'normEofBnc.dat'
-BncEnorm = open(filename, 'w')
-BncEnorm.write('# nb E deltaE\n')
-for i in range(0,30):
-    BncEnorm.write("%e %e %e\n" %(i, normAvg[0,i], normAvg[1,i]))
-BncEnorm.close()

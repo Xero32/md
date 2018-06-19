@@ -34,7 +34,7 @@ def GaussSmoothing(N, t, f, dt=1, nu=4, edge='none', X=[]):
             else:
                 GaussSum += Gauss(t,j,h)
             #end if (edge gaussians)
-        elif edge == 'none':
+        elif edge == 'none' or edge == '':
             GaussSum += Gauss(t,j,h)
         else:
             print('Error in Gaussian Smoothing. Choose one of the following boundary handling methods: "none", "positive" or "negative".')
@@ -68,13 +68,18 @@ def GaussSmoothing(N, t, f, dt=1, nu=4, edge='none', X=[]):
             else:
                 fG += Gauss(t, j, h) / GaussSum * f[j]
             #end if (edge gaussians)
-        elif edge =='none':
+        elif edge =='none' or edge == '':
             fG += Gauss(t, j, h) / GaussSum * f[j]
         else:
             print('Error in Gaussian Smoothing. Choose one of the following boundary handling methods: "none", "positive" or "negative".')
             return -1
         #end if
     return fG # double
+
+def DoSmoothing(length, Arr, dt=1, nu=0):
+    for k in range(0,length):
+        Arr[k] = GaussSmoothing(length, k, Arr, dt=1, nu=nu)
+    return Arr
 
 
 def smoothing(x,window_len=11,window='hanning'):
@@ -133,3 +138,30 @@ def smoothing(x,window_len=11,window='hanning'):
 
     y=numpy.convolve(w/w.sum(),s,mode='valid')
     return y
+
+def Compress(Val, wl=0, num=0):
+    # it is mandatory to set ONE value of wl (window length) or num in function call
+    l = len(Val)
+    if wl == 0:
+        assert(num != 0)
+        wl = int(l // num)
+    if num == 0:
+        assert(wl != 0)
+        num = int(l // wl)
+
+    assert(num*wl == l)
+
+    index = 0
+    counter = 0
+    avg = 0
+    while (index+wl <= l):
+        for i in range(index, index+wl):
+            avg += Val[i]
+
+        Val[counter] = avg / wl
+        index += wl
+        counter += 1
+        avg = 0
+
+    assert(counter == num)
+    return Val[:num], wl, num

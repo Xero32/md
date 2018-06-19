@@ -1,6 +1,21 @@
 import math
 import numpy as np
 
+def Scaling(State, Trans, Refl, TRAJ_COUNTER, HLRN_COUNTER, TIMESTEPS_RZ, TIMESTEPS_HLRN):
+    for i in range(0, TIMESTEPS_HLRN):
+        if i < TIMESTEPS_RZ:
+            for j in range(0,3):
+                State[j,i] /= TRAJ_COUNTER
+            for j in range(0,6):
+                Trans[j,i] /= TRAJ_COUNTER
+            Refl[i] /= TRAJ_COUNTER
+        else:
+            for j in range(0,3):
+                State[j,i] /= HLRN_COUNTER
+            for j in range(0,6):
+                Trans[j,i] /= HLRN_COUNTER
+            Refl[i] /= HLRN_COUNTER
+
 #calculate StdDeviation for Sticking coefficient
 def StdDeviation(NQ, NT, N):
     nu = (NQ + NT)# NQ and NT are already normalized to 1; otherwise here would be: (NQ+NT)/N
@@ -42,8 +57,16 @@ def Eigenvalue(R):
 
 def StdEigenvalue(R, Rstd):
     print("calculate error on eigenvalues")
-    delL = Rstd[0,0] + Rstd[1,1] + R[1,0] * Rstd[0,1] + R[0,1] * Rstd[1,0]
-    print(delL)
+    a = R[0,0]
+    b = R[1,1]
+    c = R[0,1]
+    d = R[1,0]
+    root = math.sqrt( (a-b)**2 + 4*c*d )
+    terma = math.fabs(-0.5 - (a-b)/(2. * root)) * Rstd[0,0]
+    termb = math.fabs(-0.5 + (a-b)/(2. * root)) * Rstd[1,1]
+    termc = math.fabs(-d/root) * Rstd[0,1]
+    termd = math.fabs(-c/root) * Rstd[1,0]
+    delL = terma + termb + termc + termd
     return delL
 
 def Coeffs(l1, l2, N, R, te):
@@ -57,31 +80,19 @@ def StdCoeffs(l1, l2, N, R, te, lstd, Rstd, total):
     delN0 = StdDeviation(N[0][te], 0, total)
     delN1 = StdDeviation(N[1][te], 0, total)
     term_l1 = math.fabs(lstd / denom**2 * (N[0][te] - (l2-R[1,1]) * N[1][te]/R[1,0]))
-    print(term_l1)
     term_l2 = math.fabs(lstd * (N[1][te]*l1 - N[1][te]*R[1,1] - N[0][te]*R[1,0]) / (R[1,0] * denom**2))
-    print(term_l2)
     term_N0 = math.fabs(delN0 / denom)
-    print(term_N0)
     term_N1 = math.fabs(delN1 * (R[1,1] - l2) / (R[1,0] * denom))
-    print(term_N1)
     term_R11 = math.fabs(Rstd[1,1] * N[1][te] / (R[1,0] * denom))
-    print(term_R11)
     term_R10 = math.fabs(Rstd[1,0] * N[1][te] * (l2 - R[1,1]) / (R[1,0]**2 * denom))
-    print(term_R10)
     delC1 = term_l1 + term_l2 + term_N0 + term_N1 + term_R11 + term_R10
 
     term_l1 = math.fabs(lstd * (N[1][te]*R[1,1] + N[0][te]*R[1,0] - l2*N[1][te]) / (R[1,0] * denom))
-    print(term_l1)
-    term_l2 = math.fabs(lstd * (N[0][te] - N[1][te]*(l1-R[1,1])) / (R[1,0]* denom))
-    print(term_l2)
+    term_l2 = math.fabs(lstd * (N[0][te] - N[1][te]*(l1-R[1,1])/R[1,0]) / denom**2)
     term_N0 = math.fabs(delN0 / denom)
-    print(term_N0)
     term_N1 = math.fabs(delN1 * (l1 - R[1,1]) / (R[1,0] * denom))
-    print(term_N1)
     term_R11 = math.fabs(Rstd[1,1] * N[1][te] / (R[1,0] * denom))
-    print(term_R11)
     term_R10 = math.fabs(Rstd[1,0] * N[1][te] * (l1 - R[1,1]) / (R[1,0]**2 * denom))
-    print(term_R10)
     delC2 = term_l1 + term_l2 + term_N0 + term_N1 + term_R11 + term_R10
     return delC1, delC2
 
@@ -108,24 +119,56 @@ def AvgRate(start, end, TRate):
 def StdRate(start, end, TRate, avg):
     std = 0
     M = end - start
+
     for i in range(start, end):
         std += (TRate[i] - avg) ** 2 / (M-1)
-    return np.sqrt(std)
+    return np.sqrt(std) / np.sqrt(M)                # effectively we calculate sigma/sqrt(M)
+                                                    # standard error of the mean
 
 def CalcR(start, end, R, Rstd, TRate):
-    R[0,0] = -AvgRate(start, end, TRate[1]) - AvgRate(start, end, TRate[0])
-    Rstd[0,0] = StdRate(start, end, TRate[1], R[0,0]) + StdRate(start, end, TRate[0], R[0,0])
-    R[1,1] = -AvgRate(start, end, TRate[3]) - AvgRate(start, end, TRate[2])
-    Rstd[1,1] = StdRate(start, end, TRate[3], R[1,1]) + StdRate(start, end, TRate[2], R[1,1])
-    R[0,1] = AvgRate(start, end, TRate[2])
-    Rstd[0,1] = StdRate(start, end, TRate[2], R[0,1])
-    R[1,0] = AvgRate(start, end, TRate[0])
-    Rstd[1,0] = StdRate(start, end, TRate[0], R[1,0])
+    avgt0 = AvgRate(start, end, TRate[0])
+    avgt1 = AvgRate(start, end, TRate[1])
+    R[0,0] = -(avgt1 + avgt0)
+    Rstd[0,0] = StdRate(start, end, TRate[1], avgt1) + StdRate(start, end, TRate[0], avgt0)
+
+    avgt2 = AvgRate(start, end, TRate[2])
+    avgt3 = AvgRate(start, end, TRate[3])
+    R[1,1] = -(avgt3 + avgt2)
+    Rstd[1,1] = StdRate(start, end, TRate[3], avgt3) + StdRate(start, end, TRate[2], avgt2)
+
+    R[0,1] = avgt2
+    Rstd[0,1] = StdRate(start, end, TRate[2], avgt2)
+    R[1,0] = avgt0
+    Rstd[1,0] = StdRate(start, end, TRate[0], avgt0)
     return R
 
 def ResTime(l1, N00, N10, R):
     Delta = R[0,1] * R[1,0] / math.fabs(R[1,1])
-    deltalambda = math.fabs(R[1,1]) - math.fabs(R[0,0]) + 2 * Delta
-    N0 = (1. - (1./math.e)) * ( N00 + R[0,1] / R[1,1] * N10 ) + (N10 + R[1,0] * N00 / deltalambda)
-    tR = 1./l1 * math.log(1./math.e * (N00 + N10) / N0)
+    deltalambda = math.fabs(R[1,1]) - math.fabs(R[0,0]) + 2. * Delta
+    gamma = (1./math.e)
+    N0 = (1. - gamma) * ( N00 + R[0,1] / math.fabs(R[1,1]) * N10 ) + (N10 + R[1,0] * N00 / deltalambda)
+    tR = 1./l1 * math.log(gamma * (N00 + N10) / N0)
     return tR * 6.53
+
+def StdResTime(l1, delL, N00, N10, R):
+    #TODO: error on N0
+    Delta = R[0,1] * R[1,0] / math.fabs(R[1,1])
+    gamma = (1./math.e)
+    deltalambda = math.fabs(R[1,1]) - math.fabs(R[0,0]) + 2. * Delta
+    N0 = (1. - gamma) * ( N00 + R[0,1] / math.fabs(R[1,1]) * N10 ) + (N10 + R[1,0] * N00 / deltalambda)
+    std = delL / l1**2 * math.log(gamma * (N00 + N10) / N0)
+    return math.fabs(std * 6.53)
+
+def CalcSolution(fp, State, TIMESTEPS, start, end, R, Rstd, TRate, TRAJ_COUNTER, num):
+    N = np.zeros([2, TIMESTEPS*2])
+    N[0][fp] = State[0][fp]
+    N[1][fp] = State[1][fp]
+    Time2 = np.arange(0, TIMESTEPS*2)
+    CalcR(start, end, R[:,:,0], Rstd[:,:,0], TRate[:, :num])
+    l1, l2 = Eigenvalue(R[:,:,0])
+    delL = StdEigenvalue(R[:,:,0], Rstd[:,:,0])
+    c1, c2 = Coeffs(l1, l2, N, R[:,:,0], fp)
+    dc1, dc2 = StdCoeffs(l1, l2, N, R[:,:,0], fp, delL, Rstd[:,:,0], TRAJ_COUNTER)
+    N = PopN(c1, c2, l1, l2, R[:,:,0], N, TIMESTEPS, fp)
+
+    return N, l1, l2, delL, c1, dc1, c2, dc2, Time2

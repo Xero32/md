@@ -2,12 +2,18 @@
 import matplotlib.pyplot as plt
 import smooth
 import math
+import stats
+from scipy.signal import savgol_filter as sf
 import numpy as np
 import numpy.ma as ma
 
-def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=2):
+def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=5, hlrn=0):
     TIMESTEPS = len(T)
     DT = 1
+    if hlrn == 1:
+        name = 'a'+angle+'t'+temp+'e'+energy+'HLRN'
+    else:
+        name = 'a'+angle+'t'+temp+'e'+energy
     if smflag == 1:
         print("Smoothing Populations")
         ctr = 0
@@ -30,33 +36,55 @@ def Populations(angle, temp, energy, X, T, Q, C, smflag=1, pltflag=1, nu=2):
         plt.xlabel("time / ps")
         plt.ylabel("")
         plt.title("Angle " + angle + " deg, Energy " + energy + " meV, Temp " + temp + " K")
-        #plt.savefig('/home/becker/lammps/111/' + name + 'BounceSmooth.pdf')
+        plt.tight_layout()
+        #plt.savefig('/home/becker/lammps/tmpplot/' + name + 'Population.pdf')
         plt.show(block=True)
         plt.close(fig)
 
-def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag=1, pltflag=1, nu=10):
+def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC=[], QC=[], smflag=1, pltflag=1, nu=49, hlrn=0):
     TIMESTEPS = len(QT)
+    l = len(QT)
     DT = 1
+    fig, ax = plt.subplots(num='a'+angle+'t'+temp+'e'+energy)
+    if hlrn == 1:
+        name = 'a'+angle+'t'+temp+'e'+energy+'HLRN'
+    else:
+        name = 'a'+angle+'t'+temp+'e'+energy
+    if pltflag == 1:
+        ax.plot(X*2.5e-2, QT, 'b--', label = 'QT')
+        ax.plot(X*2.5e-2, TQ, 'C1--', label = 'TQ')
+        ax.plot(X*2.5e-2, CT, 'g--', label = 'CT')
+        ax.plot(X*2.5e-2, CQ, 'r--', label = 'CQ')
     if smflag == 1:
+        start = int(5 * l/30)
+        Edge = np.arange(-start-5,l-start-5,1)
         print("Smoothing Transition Populations")
         ctr = 0
-        for k in range(0,TIMESTEPS):
+        # sf = scipy.signal.savgol_filter
+        QT[:] = sf(QT, nu, 3, deriv=0)
+        TQ[:] = sf(TQ, nu, 3, deriv=0)
+        CT[:] = sf(CT, nu, 3, deriv=0)
+        CQ[:] = sf(CQ, nu, 3, deriv=0)
+        '''
+        for k in range(0,TIMESTEPS):# - int(0.01*l)):
             if k % (TIMESTEPS / 10) == 0:
                 print(angle, temp, '\t'+str(ctr)+' %')
                 ctr += 10
-            QT[k] = smooth.GaussSmoothing(TIMESTEPS, k, QT, DT, nu=nu)
-            TQ[k] = smooth.GaussSmoothing(TIMESTEPS, k, TQ, DT, nu=nu)
-            CT[k] = smooth.GaussSmoothing(TIMESTEPS, k, CT, DT, nu=nu)
-            CQ[k] = smooth.GaussSmoothing(TIMESTEPS, k, CQ, DT, nu=nu)
+
+            QT[k] = smooth.GaussSmoothing(TIMESTEPS, k, QT, dt=DT, nu=nu, edge='', X=Edge)
+            TQ[k] = smooth.GaussSmoothing(TIMESTEPS, k, TQ, dt=DT, nu=nu, edge='', X=Edge)
+            CT[k] = smooth.GaussSmoothing(TIMESTEPS, k, CT, dt=DT, nu=nu, edge='', X=Edge)
+            CQ[k] = smooth.GaussSmoothing(TIMESTEPS, k, CQ, dt=DT, nu=nu, edge='', X=Edge)
         print(angle, temp, '\t100 %')
+        '''
     # plot the results
     if pltflag == 1:
         print("Plot Transition Populations")
-        fig, ax = plt.subplots(num='a'+angle+'t'+temp+'e'+energy)
-        ax.plot(X*2.5e-2, QT, '-', label = 'QT')
-        ax.plot(X*2.5e-2, TQ, '-', label = 'TQ')
-        ax.plot(X*2.5e-2, CT, '-', label = 'CT')
-        ax.plot(X*2.5e-2, CQ, '-', label = 'CQ')
+        #fig, ax = plt.subplots(num='a'+angle+'t'+temp+'e'+energy)
+        ax.plot(X*2.5e-2, QT, 'b-', label = 'QT')
+        ax.plot(X*2.5e-2, TQ, 'C1-', label = 'TQ')
+        ax.plot(X*2.5e-2, CT, 'g-', label = 'CT')
+        ax.plot(X*2.5e-2, CQ, 'r-', label = 'CQ')
         try:
             ax.plot(X*2.5e-2, TC, '-', label = 'TC')
             ax.plot(X*2.5e-2, QC, '-', label = 'QC')
@@ -72,7 +100,8 @@ def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag
         #    plt.axis([0,30,0,.1])
         #else:
         #    plt.axis([0,30,0,.3])
-        #plt.savefig('/home/becker/lammps/111/' + name + 'Transition.pdf')
+        plt.tight_layout()
+        #plt.savefig('/home/becker/lammps/tmpplot/' + name + 'Transition.pdf')
         plt.show(block=True)
         plt.close(fig)
 
@@ -80,17 +109,37 @@ def TransitionPopulations(angle, temp, energy, X, QT, TQ, CT, CQ, TC, QC, smflag
 
 
 #tpl: # nb, t1, t2, tm, s1, s2, transition, (energy loss ? ) # tuple with information about bounce events
-def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, lblA='', lblB='', lblC='', lblD='', smflag=1, pltflag=1, nu=10, ylbl=''):
+def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, lblA='', lblB='', lblC='', lblD='', smflag=1, pltflag=1, nu=8, ylbl='', avgflag=0, start=0, end=0, hlrn=0):
+    if hlrn == 1:
+        name = 'a'+angle+'t'+temp+'e'+energy+'HLRN'
+    else:
+        name = 'a'+angle+'t'+temp+'e'+energy
     if smflag == 1:
         print("Smoothing Transition Rates")
+
         for k in range(0,len(Ta)):
             Ta[k] = smooth.GaussSmoothing(len(Ta), k, Ta, dt=1, nu=nu)
             Tb[k] = smooth.GaussSmoothing(len(Ta), k, Tb, dt=1, nu=nu)
             Tc[k] = smooth.GaussSmoothing(len(Ta), k, Tc, dt=1, nu=nu)
             Td[k] = smooth.GaussSmoothing(len(Ta), k, Td, dt=1, nu=nu)
+
     if pltflag == 1:
         print("Plot Transition Rates")
         fig, ax = plt.subplots(num='a'+angle+'t'+temp+'e'+energy)
+        if avgflag == 1:
+            avga = stats.AvgRate(start, end, Ta)
+            avgb = stats.AvgRate(start, end, Tb)
+            avgc = stats.AvgRate(start, end, Tc)
+            avgd = stats.AvgRate(start, end, Td)
+            Avga = np.array([avga for i in range(len(Ta))])
+            Avgb = np.array([avgb for i in range(len(Ta))])
+            Avgc = np.array([avgc for i in range(len(Ta))])
+            Avgd = np.array([avgd for i in range(len(Ta))])
+            ax.plot(X*2.5e-2, Avga, 'b--', label=lblA+'avg')
+            ax.plot(X*2.5e-2, Avgb, 'C1--', label=lblB+'avg')
+            ax.plot(X*2.5e-2, Avgc, 'g--', label=lblC+'avg')
+            ax.plot(X*2.5e-2, Avgd, 'r--', label=lblD+'avg')
+
         ax.plot(X*2.5e-2, Ta, 'b-', label = lblA)
         ax.plot(X*2.5e-2, Tb, 'C1-', label = lblB)
         ax.plot(X*2.5e-2, Tc, 'g-', label = lblC)
@@ -98,16 +147,22 @@ def TransitionRate(angle, temp, energy, X, Ta, Tb, Tc, Td, lblA='', lblB='', lbl
         legend = ax.legend()
         plt.xlabel("time / ps")
         plt.ylabel(ylbl)
-        plt.axis([0,60,-0.3,3])
+        if hlrn == 1:
+            plt.axis([0,60,-0.1,1.5])
+        else:
+            plt.axis([0,40,-0.1,1.5])
         plt.title("Angle " + angle + " deg, Energy " + energy + " meV, Temp " + temp + " K")
         #plt.savefig('./check.pdf')
         #if int(temp) == 80:
         #    plt.axis([0,30,0,.1])
         #else:
         #    plt.axis([0,30,0,.3])
-        #plt.savefig('/home/becker/lammps/111/' + name + 'TransitionRate.pdf')
-        #plt.show(block=True)
-        #plt.close(fig)
+        plt.tight_layout()
+        #plt.savefig('/home/becker/lammps/tmpplot/' + name + 'TransitionRate.pdf')
+        plt.show(block=True)
+        plt.close(fig)
+
+    return Ta, Tb, Tc, Td
 
 #TODO
 def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', lbl='', Title='', binarr=[], avg=0, std=0,
@@ -179,6 +234,7 @@ def Histogram(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', l
         plt.title(Title)
         plt.legend()
         plt.grid(True)
+        plt.tight_layout()
         plt.show()
         plt.close()
 

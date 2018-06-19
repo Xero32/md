@@ -63,6 +63,26 @@ def normEnergyDistr(nb, E_T, E_Q, E_C, length, E, state2, flag):
             c += 1
     return t, q, c
 
+def kinEnergyDistr(nb, E_T, E_Q, E_C, length, E, state2, flag):
+    t = q = c = 0
+    for j in range(0,length):
+        if (int(state2[nb,j])) == -1:# and int(flag[nb,j]) == 0:
+            E_T[t] = E[1,nb,j]*1e3 + E[0,nb,j]*1e3
+            t += 1
+        elif (int(state2[nb,j])) == 0:# and int(flag[nb,j]) == 0:
+            E_Q[q] = E[1,nb,j]*1e3 + E[0,nb,j]*1e3
+            if E_Q[q] == 0:
+                #print("Normal Q energy = 0", str(q), str(j))
+                continue
+            q += 1
+        elif (int(state2[nb,j])) == 1:# and int(flag[nb,j]) == 0:
+            E_C[c] = E[1,nb,j]*1e3 + E[0,nb,j]*1e3
+            if E_C[c] == 0:
+                #print("Normal C energy = 0", str(q), str(j))
+                continue
+            c += 1
+    return t, q, c
+
 def potEnergyDistr(nb, E_T, E_Q, E_C, length, E, state2, flag):
     t = q = c = 0
     for j in range(0,length):
