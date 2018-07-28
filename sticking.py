@@ -1,7 +1,7 @@
 import sys, math
 import matplotlib.pyplot as plt
 import numpy as np
-Temp = 190
+Temp = 300
 
 if Temp == 80:
     exponent = 1.5
@@ -21,7 +21,6 @@ ctr = 0
 for i,line in enumerate(f):
     ang, temp, nrg, stick, sigma = line.split()
     if int(temp) == Temp:
-        print('Hallo')
         Arr[:,ctr] = float(nrg)*math.cos(float(ang)*math.pi/180.)**exponent, float(stick), float(sigma)
         ctr += 1
 
