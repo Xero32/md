@@ -1,7 +1,7 @@
 import sys, math
 import matplotlib.pyplot as plt
 import numpy as np
-Temp = 80
+Temp = 190
 
 if Temp == 80:
     exponent = 1.5
@@ -24,7 +24,6 @@ for i,line in enumerate(f):
         print('Hallo')
         Arr[:,ctr] = float(nrg)*math.cos(float(ang)*math.pi/180.)**exponent, float(stick), float(sigma)
         ctr += 1
-print(Arr)
 
 
 plt.errorbar(Arr[0,:ctr], Arr[1,:ctr], Arr[2,:ctr])
