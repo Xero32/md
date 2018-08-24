@@ -1,29 +1,34 @@
 import math
 import numpy as np
+import cfg as g
 
-def Scaling(State, Trans, Refl, TRAJ_COUNTER, HLRN_COUNTER, TIMESTEPS_RZ, TIMESTEPS_HLRN):
-    for i in range(0, TIMESTEPS_HLRN):
-        if i < TIMESTEPS_RZ:
+def Scaling(State, Trans, Refl): #, TRAJ_COUNTER, HLRN_COUNTER, TIMESTEPS_RZ, TIMESTEPS_HLRN):
+    for i in range(0, g.TIMESTEPS_HLRN):
+        if i < g.TIMESTEPS_RZ:
             for j in range(0,3):
-                State[j,i] /= TRAJ_COUNTER
+                State[j,i] /= g.TRAJ_COUNTER
             for j in range(0,6):
-                Trans[j,i] /= TRAJ_COUNTER
-            Refl[i] /= TRAJ_COUNTER
+                Trans[j,i] /= g.TRAJ_COUNTER
+            Refl[i] /= g.TRAJ_COUNTER
         else:
             for j in range(0,3):
-                State[j,i] /= HLRN_COUNTER
+                State[j,i] /= g.HLRN_COUNTER
             for j in range(0,6):
-                Trans[j,i] /= HLRN_COUNTER
-            Refl[i] /= HLRN_COUNTER
+                Trans[j,i] /= g.HLRN_COUNTER
+            Refl[i] /= g.HLRN_COUNTER
 
 #calculate StdDeviation for Sticking coefficient
 def StdDeviation(NQ, NT, N):
     nu = (NQ + NT)# NQ and NT are already normalized to 1; otherwise here would be: (NQ+NT)/N
     return math.sqrt(nu*(1-nu)/N)
 
-def InitSticking(Refl, angle, temp, energy, NUM, printflag=1):
+def InitSticking(InArr1, InArr2, delay_time, angle, temp, energy, NUM, printflag=0, writeflag=0, filename=''):
     StickProb = [0,0,0,0]
-    ReflCoeff = Refl[-1]
+    # ReflCoeff = Refl[-1]
+    if len(InArr2) == 0:
+        ReflCoeff = 1.0 - InArr1[int(delay_time)]
+    else:
+        ReflCoeff = 1.0 - InArr1[int(delay_time)] + InArr2[int(delay_time)]
     sigma = StdDeviation(ReflCoeff, 0.0, NUM)
     StickProb[0] = angle
     StickProb[1] = temp
@@ -31,14 +36,29 @@ def InitSticking(Refl, angle, temp, energy, NUM, printflag=1):
     StickProb[3] = 1.0 - ReflCoeff
     if printflag == 1:
         print(StickProb, '+/-', sigma,'\n')
+    if writeflag == 1:
+        f = open(filename, 'a')
+        f.write("%d %d %f %f %f\n" %(angle, temp, energy, 1.0-ReflCoeff, sigma))
+        f.close()
 
-    return 1.0 - ReflCoeff
+    return 1.0 - ReflCoeff, sigma
 
-def median(Val):
+def median(Val, fltr=0, fltrval=0):
     m = 0
-    for i in range(0, len(Val)):
-        m += Val[i]
-    m /=  len(Val)
+    ctr = 0
+
+    if fltr == 1:
+        for i in range(0, len(Val)):
+            if Val[i] == fltrval:
+                continue
+            else:
+                m += Val[i]
+                ctr += 1
+    else:
+        for i in range(0, len(Val)):
+            m += Val[i]
+            ctr += 1
+    m /= ctr
     return m
 
 #calculate StdDev for energy development over time
@@ -102,7 +122,7 @@ def PopN(c1, c2, l1, l2, R, N, Max, te):
         N[0][t] = c1 * (l1 - R[1,1]) * math.exp(l1 * t) + c2 * (l2 - R[1,1]) * math.exp(l2 * t)
         '''
     # alternatively:
-    tarr = np.arange(0,Max*2) - te
+    tarr = np.arange(0,Max) - te
     tarr = tarr * 0.025  / 6.53
     N[0] = c1 * (l1 - R[1,1]) * np.exp(l1 * tarr) + c2 * (l2 - R[1,1]) * np.exp(l2 * tarr)
     N[1] = c1 * R[1,0] * np.exp(l1 * tarr) + c2 * R[1,0] * np.exp(l2 * tarr)
@@ -159,16 +179,39 @@ def StdResTime(l1, delL, N00, N10, R):
     std = delL / l1**2 * math.log(gamma * (N00 + N10) / N0)
     return math.fabs(std * 6.53)
 
-def CalcSolution(fp, State, TIMESTEPS, start, end, R, Rstd, TRate, TRAJ_COUNTER, num):
-    N = np.zeros([2, TIMESTEPS*2])
+def CalcSolution(fp, State, start, end, R, Rstd, TRate, num, multiplier=2):
+    N = np.zeros([2, int(g.TIMESTEPS*multiplier)])
     N[0][fp] = State[0][fp]
     N[1][fp] = State[1][fp]
-    Time2 = np.arange(0, TIMESTEPS*2)
+    Time2 = np.arange(0, int(g.TIMESTEPS*multiplier))
     CalcR(start, end, R[:,:,0], Rstd[:,:,0], TRate[:, :num])
     l1, l2 = Eigenvalue(R[:,:,0])
     delL = StdEigenvalue(R[:,:,0], Rstd[:,:,0])
     c1, c2 = Coeffs(l1, l2, N, R[:,:,0], fp)
-    dc1, dc2 = StdCoeffs(l1, l2, N, R[:,:,0], fp, delL, Rstd[:,:,0], TRAJ_COUNTER)
-    N = PopN(c1, c2, l1, l2, R[:,:,0], N, TIMESTEPS, fp)
+    dc1, dc2 = StdCoeffs(l1, l2, N, R[:,:,0], fp, delL, Rstd[:,:,0], g.TRAJ_COUNTER)
+    N = PopN(c1, c2, l1, l2, R[:,:,0], N, int(g.TIMESTEPS*multiplier), fp)
 
     return N, l1, l2, delL, c1, dc1, c2, dc2, Time2
+
+def TMAC(vxi, vyi, vxf, vyf):
+    tmac = 1. - (vxi * vxf + vyi * vyf) / (vxi**2 + vyi**2)
+    return tmac
+
+def nrgCorr(X, Y):
+    cov = E(X*Y) - E(X)*E(Y)
+    varX = var(X)
+    varY = var(Y)
+    corr = cov / (np.sqrt(varX * varY) )
+    return corr
+
+def TMACstd(tmac, avgtmac):
+    ctr = 0
+    sigma = 0
+    for i in range(len(tmac)):
+        if tmac[i] == 0:
+            continue
+        sigma += (tmac[i] - avgtmac)**2
+        ctr += 1
+    sigma = np.sqrt(1/(ctr-1) * sigma)
+    stdtmac = sigma / np.sqrt(ctr)
+    return stdtmac

@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import cfg as g
 #from stats import median
 import stats
 
@@ -8,8 +9,10 @@ import stats
 #
 
 flag = 0
+pi = 3.14159265359
 e0 = 1.60217662e-19 #(in Coulomb)
 amu = 1.66054e-27 #(amu to kg)
+mAr = 40
 e0inv = 1 / e0
 mistake = 0
 Tmistake = 0
@@ -18,9 +21,9 @@ flag = -1
 counter = 0
 
 def normalKE(v):
-    return 0.5 * 40 * amu * v * 100 * v * 100 * e0inv
+    return 0.5 * mAr * amu * v * 100 * v * 100 * e0inv
 def parallelKE(vvx, vvy):
-    return 0.5 * 40 * amu * e0inv * (vvx*100*vvx*100 + vvy*100*vvy*100)
+    return 0.5 * mAr * amu * e0inv * (vvx*100*vvx*100 + vvy*100*vvy*100)
 def normalEnergySum(nke, pe):
     return nke + pe
 def totalKE(nke, pke):
@@ -89,6 +92,81 @@ def Countbounces(Vz, Epar, Enorm, Epot, Bnc, current, length):
             i = t2
     Bnc[:,nb] = nb, l+1, s2, l+1, -3000, -3000, -3000, s2, l+1, -3000, -3000, -3000, 1
     return nb
+
+def theta(Traj, Theta, t2, ti):
+    vz = -Traj[3,10]
+    vx = Traj[4,10]
+    vy = Traj[5,10]
+    vxy = math.sqrt(vx**2 + vy**2)
+    thetai = math.atan2(vxy, vz)
+    vxyf = 0
+    vxb = Traj[4, ti]
+    vyb = Traj[5, ti]
+    vzb = -Traj[3, ti]
+    vxyb = math.sqrt(vxb**2 + vyb**2)
+    thetab = math.atan2(vxyb, vzb)
+
+    for i in range(t2, g.TIMESTEPS):
+        if Traj[6,i] > 27:
+            s = i
+            break
+    try:
+        vxf = Traj[4,s]
+        vyf = Traj[5,s]
+        vzf = Traj[3,s]
+        #vxf = Traj[4,int(t2+130)]
+        #vyf = Traj[5,int(t2+130)]
+        #vzf = Traj[3,int(t2+130)]
+        vxyf = math.sqrt(vxf**2 + vyf**2)
+        thetaf = math.atan2(vxyf, vzf)
+        Theta = thetai, thetaf
+    except:
+        if Traj[3, g.TIMESTEPS-1] != 0:
+            '''
+            vxf = Traj[4,g.TIMESTEPS-1]
+            vyf = Traj[5,g.TIMESTEPS-1]
+            vzf = Traj[3,g.TIMESTEPS-1]
+            vxyf = math.sqrt(vxf**2 + vyf**2)
+            thetaf = math.atan2(vxyf, vzf)
+            Theta = thetai, thetaf
+            '''
+            thetaf = 0.0
+            Theta = thetai,thetaf
+    return Theta, thetab
+
+def thetaEQ(Theta, NB, nbin):
+    #TODO weighting by number of trajectories in each case
+    ThetaEQ = np.full((8,3,nbin), -9999.)
+    for i in range(0,len(Theta[2,:])):
+        if Theta[2,i] <= NB[0]:
+            if Theta[0,i] < 1000 and Theta[1,i] < 1000:
+                if Theta[1,i] >= 0:
+                    ThetaEQ[0][0][i] = (Theta[0,i])
+                    ThetaEQ[0][1][i] = (Theta[1,i])
+                    ThetaEQ[0][2][i] = (Theta[2,i])
+    for n in range(1,len(NB)):
+        for i in range(0,len(Theta[2,:])):
+            if Theta[2,i] >= NB[n]:
+                if Theta[0,i] < 1000 and Theta[1,i] < 1000:
+                    if Theta[1,i] >= 0:
+                        ThetaEQ[n][0][i] = (Theta[0,i])
+                        ThetaEQ[n][1][i] = (Theta[1,i])
+                        ThetaEQ[n][2][i] = (Theta[2,i])
+    return ThetaEQ
+
+def bncHist(bounceavg):
+    sequence = np.arange(0,50)
+    bouncehist = np.histogram(bounceavg, density=False, bins=sequence)
+    #look at how the number of trajectories diminishes as nb grows
+    bouncecumulative = np.cumsum(bouncehist[0])
+    return bouncecumulative
+
+def setNB(bncCumu):
+    NB = 0
+    for i in range(0, len(bncCumu)):
+        if bncCumu[i] < (min(bncCumu)+max(bncCumu))/2:
+            NB = i
+    return NB
 
 #State: T, Q, C; Trans: QT, CT, TQ, CQ
 def Population(nb, bnc0, bnc1, bnc2, State, Trans, Refl, scale, traj, length):
@@ -397,7 +475,7 @@ def BncTime(Bnc, ntraj, nbnc, steps, Arr):
     return Arr
 
 def TimeBetwBounces(Arr):
-    N = len(Arr[0])
+    N = len(Arr[0])-5
     delta = 0
     ctr = 0
     for i in range(0,N-1):

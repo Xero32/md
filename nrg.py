@@ -1,6 +1,7 @@
 import numpy as np
 import smooth
 import matplotlib.pyplot as plt
+import cfg as g
 
 def EnergyLoss(nb, delT, delQ, delC, length, Ei, Ef, state2, flag):  # implementation: E == NRG[3:8,:,:]
     t = q = c = 0
@@ -22,7 +23,6 @@ def EnergyLoss(nb, delT, delQ, delC, length, Ei, Ef, state2, flag):  # implement
             if delC[c] == 0:
                 continue
             c += 1
-
 
     return t, q, c
 
@@ -146,7 +146,7 @@ def PlotHist(emin, emax, nbin, A, B, C, subplts=0, lblA='', lblB='', lblC='', lb
             if(pltflag == 1):
                 plt.plot(hA[1][:-1], 1e1*(hA[0] / norm), label=lblA)
                 plt.plot(hB[1][:-1], 1e1*(hB[0] / norm), label=lblB)
-                plt.plot(hC[1][:-1], 1e1*(hC[0] / norm),label=lblC)
+                plt.plot(hC[1][:-1], 1e1*(hC[0] / norm), label=lblC)
     if totalplt == 1:
         if sm_flag == 1:
             sTot = smooth.smoothing(hTot[0] / norm, window_len=win_len, window=sm_win)
