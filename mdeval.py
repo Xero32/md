@@ -213,6 +213,8 @@ StickCoeff = stats.InitSticking(State[0], State[1], tD, int(angle),int(temperatu
 
 
 ###### Particle Populations
+plt.clf()
+plt.cla()
 plot.Populations(angle, temperature, Energy[energy], Time, State[0], State[1], State[2], smflag=g.G_POP, pltflag=g.P_POP, hlrn=g.HLRN, Title=nameAng)
 ###### Compress Population for better statistics and easier handling
 num = num
@@ -253,18 +255,21 @@ for i in range(0,6):
 
 TimePrime2 = np.arange(0, g.TIMESTEPS_HLRN, wl*wl2) # 2nd Compressed Timescale
 
-# don't actually plot T Rates here, just use it for smoothing
-if int(temperature) < 160:
-    nu = 4
-else:
-    nu = 8
-plot.TransitionRate(angle, temperature, Energy[energy], TimePrime2, TRate[0, :num2], TRate[2, :num2], TRate[1, :num2], TRate[3, :num2],
-lblA='T_QT', lblB='T_TQ', lblC='T_CT', lblD='T_CQ', smflag=g.G_T, pltflag=0, ylbl='Transition Rate / t\u2080\u207B\u00B9', hlrn=g.HLRN, Title=nameAng, nu=nu)
-
-###### Setup Analytical Solution
+###### Plot Transition Rates, calculate avg value
 fp = int(20 // 0.025) #fixpoint aka t_e
 start = int(startps * num2 / maxps)
 end = int(endps * num2 / maxps)
+if int(temperature) < 160:
+    avgflag = 0
+    nu = 4
+else:
+    avgflag = 1
+    nu = 8
+plot.TransitionRate(angle, temperature, Energy[energy], TimePrime2, TRate[0, :num2], TRate[2, :num2], TRate[1, :num2], TRate[3, :num2], lblA=r'$T_{QT}$', lblB=r'$T_{TQ}$', lblC=r'$T_{CT}$', lblD=r'$T_{CQ}$',
+smflag=1, pltflag=g.P_T, ylbl='Transition Rate / t\u2080\u207B\u00B9', avgflag=avgflag, start=start, end=end, hlrn=g.HLRN, Title=nameAng)
+
+
+###### Setup Analytical Solution
 print("maxps: ", maxps)
 print("start: ", start, " end: ", end)
 
@@ -302,15 +307,6 @@ left = StateComp[0,-1] * horizontal[0,-1]
 right = StateComp[1,-1] * horizontal[2,-1] + StateComp[1,-1] * horizontal[3,-1]
 print('N_T * T_QT \t\tvs.\t N_Q * (T_TQ + T_CQ)')
 print(left, '\tvs.\t', right)
-
-# T Rates have already been smoothed, now plot!
-# Plot
-if int(temperature) < 160:
-    avgflag = 0
-else:
-    avgflag = 1
-plot.TransitionRate(angle, temperature, Energy[energy], TimePrime2, TRate[0, :num2], TRate[2, :num2], TRate[1, :num2], TRate[3, :num2], lblA=r'$T_{QT}$', lblB=r'$T_{TQ}$', lblC=r'$T_{CT}$', lblD=r'$T_{CQ}$',
-smflag=0, pltflag=g.P_T, ylbl='Transition Rate / t\u2080\u207B\u00B9', avgflag=avgflag, start=start, end=end, hlrn=g.HLRN, Title=nameAng)
 
 '''
 fl = open("ResTime.dat", 'a')
