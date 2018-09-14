@@ -11,8 +11,13 @@ The theoretical foundation is based on the work by A. Filinov, M. Bonitz, and D.
 how to run:
 
 python3 mdeval.py <Angle> <Temperature> <[--Options]>
-                       Options:    --hlrn\\
+  
+                       Options:    --hlrn
+                       
                                    --nrg (float)
+                                   
                                    --start (int) [set start time for averaging of Transition Rates]
+                                   
                                    --end (int) [set end time for averaging of Transition rates]
+                                   
                                    --fp (int) [set temporal fixpoint for initial value problem in analytical solution]
