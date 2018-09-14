@@ -12,6 +12,7 @@
 #                                   --nrg (float)
 #                                   --start (int) [set start time for averaging of Transition Rates]
 #                                   --end (int) [set end time for averaging of Transition rates]
+#                                   --fp (int) [set temporal fixpoint for initial value problem in analytical solution]
 #
 #   Program reads files from directories    /home/<user>/lammps/111/a{angle}t{temperature}e{energy}/{job}
 #   or alternatively:                       /home/<user>/lammps/111/HLRN/a{angle}t{temperature}e{energy}/{job}
