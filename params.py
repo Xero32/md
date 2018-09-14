@@ -7,11 +7,17 @@ import cfg as g
 def InpParams(parser):
     parser.add_argument("a", help='Angle', default='30', nargs='?')
     parser.add_argument("t", help='Temperature', default='300', nargs='?')
+    parser.add_argument("--fp", help='Temporal_Fixpoint for initial value problem')
     parser.add_argument("--enrg", help='Incident Energy')
     parser.add_argument("--start", help="Sets start time to calculate average transition rate", default=20)
     parser.add_argument("--end", help="Sets end time to calculate average transition rate", default=30)
     parser.add_argument("--hlrn", help="Use trajectories from HLRN runs", action='store_true')
     args = parser.parse_args()
+    if args.fp:
+        fp = float(args.fp)
+        print(fp)
+    else:
+        fp = int(20//0.025) #default for t=20ps at 0.00025 ps timestep with data written out every 100 steps
     if args.start:
         startps = float(args.start)
         print(startps)
@@ -34,7 +40,7 @@ def InpParams(parser):
         g.HLRN = 1
     else:
         g.HLRN = 0
-    return startps, endps, angle, temperature, energy, g.HLRN
+    return startps, endps, angle, temperature, energy, g.HLRN, fp
 
 def Parameters(temperature, energy): #, HLRN):
     if int(temperature) == 80:
@@ -150,6 +156,7 @@ def Parameters(temperature, energy): #, HLRN):
             g.NUM_OF_TRAJ = 200
             g.nbnc = 30
             if float(energy) != 70.0:
+                #TODO remove clip in job array
                 g.jobs = (7094785, 7107197, 7107198, 7107199, 7107200, 7107201, 7131101, 7131102, 7131113, 7131114)
             else:
                 g.jobs = (7227490, 7227494, 7227495, 7227496, 7227497)
@@ -182,13 +189,13 @@ def Parameters(temperature, energy): #, HLRN):
 
     #return TIMESTEPS_RZ, TIMESTEPS_HLRN, NUM_OF_TRAJ_RZ, NUM_OF_TRAJ, nbnc, jobs
 
-def Openfile(d, in_folder, name, jb, ending): #, TIMESTEPS_RZ, TIMESTEPS_HLRN, NUM_OF_TRAJ_RZ):
+def Openfile(d, in_folder, in_folder_hlrn, name, jb, ending): #, TIMESTEPS_RZ, TIMESTEPS_HLRN, NUM_OF_TRAJ_RZ):
     try:
         try:
             name_kin = in_folder + str(jb) + '.bbatch.hsn.hlrn.de/' + str(d) + ending
             fl_kin = open(name_kin, 'r')
         except:
-            name_kin = '/home/becker/lammps/111/HLRN/' + name + '/' + str(jb) + '.bbatch.hsn.hlrn.de/' + str(d) + ending
+            name_kin = in_folder_hlrn + name + '/' + str(jb) + '.bbatch.hsn.hlrn.de/' + str(d) + ending
             fl_kin = open(name_kin, 'r')
         g.TIMESTEPS = g.TIMESTEPS_HLRN
         hlrnflag = 1
@@ -204,13 +211,13 @@ def Openfile(d, in_folder, name, jb, ending): #, TIMESTEPS_RZ, TIMESTEPS_HLRN, N
     return fl_kin, g.TIMESTEPS, hlrnflag
 
 
-def Readfiles(ctr, d, jb, name, in_folder): #, TIMESTEPS_HLRN, TIMESTEPS_RZ, NUM_OF_TRAJ_RZ):
+def Readfiles(ctr, d, jb, name, in_folder, in_folder_hlrn): #, TIMESTEPS_HLRN, TIMESTEPS_RZ, NUM_OF_TRAJ_RZ):
     flag = 0
 
     # open file for potential energy;
     # keep in mind that relevant information is only stored in every tenth line
 
-    fl_pe, g.TIMESTEPS, hlrnflag = Openfile(d, in_folder, name, jb, ".lammpstrj") #, TIMESTEPS_RZ, TIMESTEPS_HLRN, NUM_OF_TRAJ_RZ)
+    fl_pe, g.TIMESTEPS, hlrnflag = Openfile(d, in_folder, in_folder_hlrn, name, jb, ".lammpstrj") #, TIMESTEPS_RZ, TIMESTEPS_HLRN, NUM_OF_TRAJ_RZ)
     Traj = np.zeros([7, g.TIMESTEPS])
     j = 1
     for i, line in enumerate(fl_pe):
@@ -228,7 +235,7 @@ def Readfiles(ctr, d, jb, name, in_folder): #, TIMESTEPS_HLRN, TIMESTEPS_RZ, NUM
     # here except for the header every line contains information for the
     # corresponding timestep
 
-    fl_kin, g.TIMESTEPS, hlrnflag = Openfile(d, in_folder, name, jb, ".dat") #, TIMESTEPS_RZ, TIMESTEPS_HLRN, NUM_OF_TRAJ_RZ)
+    fl_kin, g.TIMESTEPS, hlrnflag = Openfile(d, in_folder, in_folder_hlrn, name, jb, ".dat") #, TIMESTEPS_RZ, TIMESTEPS_HLRN, NUM_OF_TRAJ_RZ)
 
     for a,line in enumerate(fl_kin):
         b = a - 1

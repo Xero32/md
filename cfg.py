@@ -30,7 +30,7 @@ P_TBETW = 0
 P_DECR = 0
 P_NRG = 0
 #set all: if not needed, comment line
-P_POP = P_TRANS = P_T = P_SOL = P_ANG = P_TBETW = P_DECR = P_NRG = 0
+P_POP = P_TRANS = P_T = P_SOL = P_ANG = P_TBETW = P_DECR = P_NRG = 1
 
 #Save
 S_POP = 0
