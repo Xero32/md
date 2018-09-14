@@ -10,7 +10,7 @@ The theoretical foundation is based on the work by A. Filinov, M. Bonitz, and D.
 
 how to run:
 
-python3 mdeval.py <Angle> <Temperature> <[--Options]>
+python3 mdeval.py [Angle] [Temperature] [--Options]
   
                        Options:    --hlrn
                        
