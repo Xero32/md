@@ -17,9 +17,9 @@ TIMESTEPS_RZ = 120000 // 100
 TIMESTEPS_HLRN = 160000 // 100
 NUM_OF_TRAJ_RZ = 200
 NUM_OF_TRAJ = 200
+matplotlib.rcParams.update({'font.size': 16})
 ## Plot, Save Write flags
 #Plot
-matplotlib.rcParams.update({'font.size': 16})
 
 P_POP = 0
 P_TRANS = 0

@@ -46,11 +46,10 @@ def Populations(angle, temp, energy, X, T, Q, C, Title='', smflag=1, pltflag=1, 
 
     if pltflag == 1:
         print('Plot Populations')
-        fig, ax = plt.subplots(num='a'+angle+'t'+temp+'e'+energy)
-        ax.plot(X*2.5e-2, C, 'r-', label = r'$N_C$')
-        ax.plot(X*2.5e-2, Q, 'g--', label = r'$N_Q$')
-        ax.plot(X*2.5e-2, T, 'b-.', label = r'$N_T$')
-        legend = ax.legend()
+        # fig, ax = plt.subplots(num='a'+angle+'t'+temp+'e'+energy)
+        plt.plot(X*2.5e-2, C, 'r-', label = r'$N_C$')
+        plt.plot(X*2.5e-2, Q, 'g--', label = r'$N_Q$')
+        plt.plot(X*2.5e-2, T, 'b-.', label = r'$N_T$')
         svname = '/home/becker/lammps/newplot/Pop/' + name + 'Population.pdf'
         SetupPlot(Title, 'Time / ps', 'Population Fraction', saveflag=g.S_POP, savename=svname, Block=1-g.S_POP)
 
