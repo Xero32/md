@@ -1,7 +1,6 @@
 import numpy as np
 import math
 import cfg as g
-#from stats import median
 import stats
 
 # TODO
@@ -12,7 +11,7 @@ flag = 0
 pi = 3.14159265359
 e0 = 1.60217662e-19 #(in Coulomb)
 amu = 1.66054e-27 #(amu to kg)
-mAr = 40
+mAr = 40.
 e0inv = 1 / e0
 mistake = 0
 Tmistake = 0
@@ -40,8 +39,16 @@ def State(nke,pke,pot):
         else:
             return -1
 
-# nb, tm, s1, t1, E_xy.i, E_z.i, V.i, s2, t2, E_xy.f, E_z.f, V.f, refl_flag
 def Countbounces(Vz, Epar, Enorm, Epot, Bnc, current, length):
+    # input: array of velocity z component for one trajectory + energy components
+    # output: Bnc -- array that contains all necessary information for all bounces
+    #       with the following entries:
+    #           nb, tm, s1, t1, E_xy.i, E_z.i, V.i, s2, t2, E_xy.f, E_z.f, V.f, refl_flag
+    #
+    # First scan velocity array, at sign change scan backwards and forwards to obtain minimum
+    # and maximum, resepctively. The times of the extrema define the bounce times t1, t2
+    # at these times we perform the state classification for each bounce
+
     global counter
     #l = Vz.size - 1
     l = length - 1
@@ -79,7 +86,7 @@ def Countbounces(Vz, Epar, Enorm, Epot, Bnc, current, length):
             tm = int(0.5*(t2+t1))
             s1 = State(Enorm[t1], Epar[t1], Epot[t1])
             s2 = State(Enorm[t2], Epar[t2], Epot[t2])
-            #print(str(t1), str(t2))
+
             if nb > 0:
                 if s1 == 1 and s2 != 1:
                     counter += 1
@@ -94,6 +101,7 @@ def Countbounces(Vz, Epar, Enorm, Epot, Bnc, current, length):
     return nb
 
 def theta(Traj, Theta, t2, ti):
+    # to be used for angular distribution
     vz = -Traj[3,10]
     vx = Traj[4,10]
     vy = Traj[5,10]
@@ -114,9 +122,7 @@ def theta(Traj, Theta, t2, ti):
         vxf = Traj[4,s]
         vyf = Traj[5,s]
         vzf = Traj[3,s]
-        #vxf = Traj[4,int(t2+130)]
-        #vyf = Traj[5,int(t2+130)]
-        #vzf = Traj[3,int(t2+130)]
+
         vxyf = math.sqrt(vxf**2 + vyf**2)
         thetaf = math.atan2(vxyf, vzf)
         Theta = thetai, thetaf
@@ -170,19 +176,21 @@ def setNB(bncCumu):
 
 #State: T, Q, C; Trans: QT, CT, TQ, CQ
 def Population(nb, bnc0, bnc1, bnc2, State, Trans, Refl, scale, traj, length):
+    # input bounce information (bnc0-2 are lists with bounce information for given trajectory at
+    # bounces i-1, i and i)
+    #
+    # Obtain states after each bounce and fill up the corresponding arrays
+    # i.e. populations and transition populations
     global mistake
     global Tmistake
     global mistakeW
     global flag
-    #l = len(State[2]) - 1
     l = length
     assert(bnc2[0] > bnc1[0])
 
 
     if bnc1[7] != bnc2[2]:
-        dummy = 1
-        #print(str(traj), str(nb))
-        #print('Error!')
+        pass
 
     if nb == 0:
         for i in range(0, int(bnc1[1])):
@@ -292,10 +300,11 @@ def TransitionRate(dt, Nb, N_ab, T_ab):
             T_ab[t] = dq / Nb[t]
     return T_ab
 
-
-# TODO
-# numerical differentiation, where we iteratively look for the most recent change in slope
 def DifferentiateT(dt, Nb, N_ab, T_ab, wl, startps, maxps):
+    # numerical differentiation, where we iteratively look for the most recent change in slope
+    # as long as the slope between points a and b is 0, we try to lower a, so
+    # that we obtain a finite slope
+
     ddt = dt * 0.025 * wl   # [ps]
     ddt = ddt / 6.53    # [t_0]
     # this constitutes unit conversion to t_0 = 6.53 ps
@@ -338,7 +347,6 @@ def DifferentiateT(dt, Nb, N_ab, T_ab, wl, startps, maxps):
                     b -= dt
                     save = b
                     ctr += 1
-                    #print(print(str(diff)), str(t), str(b), str(a))
 
                 T_ab[t] = diff / (ctr * ddt * Nb[t])
                 ctr = 2
@@ -384,31 +392,6 @@ def DifferentiateT2(dt, Nb, N_ab, T_ab):
                 ctr = 1
     return T_ab
 
-
-
-def AlternTransition(Trans, State, fixpoint, TRateA, Max):
-    for t in range(0,Max):
-        diff = Trans[t] - Trans[fixpoint]
-        dt = t - fixpoint
-        ddt = dt * 0.025 / 6.53
-        if ddt != 0 and State[t] != 0:
-            TRateA[t] = diff / State[t] / ddt
-        else:
-            TRateA[t] = 0
-    return TRateA
-
-def TransitionRateE(Trans, State, te, TRateE, Max):
-    for t in range(0, Max):
-        if((State[t] - State[int(te)]) == 0):
-            continue
-        TRateE[t] = (Trans[t] - Trans[int(te)])/ math.fabs(State[t] - State[int(te)]) / 6.53
-    return TRateE
-
-    '''State = np.zeros([3,TIMESTEPS]) # T, Q, C
-    Trans = np.zeros([6,TIMESTEPS]) # QT, CT, TQ, CQ, TC, QC
-    TRate = np.zeros([6,TIMESTEPS]) # QT, CT, TQ, CQ, TC, QC
-                                       0   1   2   3   4   5
-    '''
 
 def IntegratePopulationT(Tnew, State, TRate, dt):
     Tnew[0] = State[0,0]

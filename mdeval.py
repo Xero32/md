@@ -42,6 +42,7 @@ import scipy, math, sys, time, argparse
 import plot, bounce, nrg, smooth, stats, params
 import cfg as g
 import matplotlib
+from pathlib import Path
 #matplotlib.rcParams.update({'font.size': 16})
 def printStd(a,b):
     print("%.4f +/- %.4f" %(a,b))
@@ -63,17 +64,21 @@ Angle  = {'0':'0.00', '30':'0.52', '45':'0.80', '60':'1.05'}
 Temperature={'80':'80', '120':'120', '160':'160', '190':'190', '220':'220', '240':'240', '270':'270', '300':'300'}
 Energy = {'0':'12.95', '30':'16.027', '45':'21.71', '60':'36.55', '70':'70.0', '25.90':'25.90', '51.80':'51.80', '103.60':'103.60'}
 te = 15 // 0.025 #default equilibration time
+t_eq = int(fp * 0.025)+1
+
 ###### Chosen Input Parameters
 params.Parameters(temperature, energy)
-name = 'a'+Angle[angle]+'t'+Temperature[temperature]+'e'+Energy[energy]         # shorthand notation "a<rad>t<K>e<meV,float>"
-nameS = 'a'+angle+'t'+Temperature[temperature]+'e'+Energy[energy].split('.')[0] # shorthand "a<deg>t<K>e<meV,int>"
+name = 'a'+Angle[angle]+'t'+Temperature[temperature]+'e'+Energy[energy]         # shorthand notation "a<rad>t<K>e<[float]meV>"
+nameS = 'a'+angle+'t'+Temperature[temperature]+'e'+Energy[energy].split('.')[0] # shorthand "a<deg>t<K>e<[int]meV>"
 nameAng = angle + u"\u00b0, " + temperature + ' K, ' + Energy[energy] + ' meV'  # notation for titles "[deg], [temp] K, [energy] meV"
-''' Ar-Pt analysis
+''' # Ar-Pt analysis
 g.jobs = (7331694, 7331705, 7331706, 7331713, 7331723, 7344079, 7344080, 7344081)
 name = 'Pta'+Angle[angle]+'t'+Temperature[temperature]+'e'+Energy[energy]
 '''
 surface = '111'
 in_folder = g.HOME + '/lammps/' + surface + '/' + name + '/'
+from pathlib import Path
+home = str(Path.home())
 in_folder_hlrn = g.HOME + '/lammps/' + surface + '/HLRN/' + name + '/'
 Temp = int(temperature)
 
@@ -185,7 +190,7 @@ def ReadfileFn():
             if tf >= g.TIMESTEPS:
                 tf -= 1
             if Bounce[7,nb-1,jj] == 1:
-                dummy = 0
+                pass
                 # TODO calc TMAC or angular distributions
 
 
@@ -248,6 +253,7 @@ def StickingFn():
 def PlotPopulations():
     plt.clf()
     plt.cla()
+
     plot.Populations(angle, temperature, Energy[energy], Time, State[0], State[1], State[2], smflag=g.G_POP, pltflag=g.P_POP, hlrn=g.HLRN, Title=nameAng)
 ###### Compress Population for better statistics and easier handling
 def Binning():
@@ -298,23 +304,24 @@ def PlotTransitionRates(TimePrime2):
     global start, end, fp
     start = int(startps * num2 / maxps)
     end = int(endps * num2 / maxps)
+    avgflag = g.P_T_AVG
     if int(temperature) < 160:
-        avgflag = 0
+        # avgflag = 0
         nu = 4
     else:
-        avgflag = 1
+        # avgflag = 1
         nu = 8
     plot.TransitionRate(angle, temperature, Energy[energy], TimePrime2, TRate[0, :num2], TRate[2, :num2], TRate[1, :num2], TRate[3, :num2], lblA=r'$T_{QT}$', lblB=r'$T_{TQ}$', lblC=r'$T_{CT}$', lblD=r'$T_{CQ}$',
     smflag=1, pltflag=g.P_T, ylbl='Transition Rate / t\u2080\u207B\u00B9', avgflag=avgflag, start=start, end=end, hlrn=g.HLRN, Title=nameAng)
 
 
 ###### Setup Analytical Solution
-def AnalyticalSolution():
+def AnalyticalSolution(writeflag=g.W_PARAM):
     global maxps, num2
-    global start, end
+    global start, end, fp
+    global Angle, Temp, Energy, angle, energy, surface
     print("maxps: ", maxps)
-    print("start: ", start, " end: ", end)
-
+    print("start_index: ", start, " end_index: ", end)
     multiplier=3 # Sets how long simulation time is to be exceeded by analytical solution
     N, l1, l2, delL, c1, dc1, c2, dc2, Time2 = stats.CalcSolution(fp, State, start, end, R, Rstd, TRate, num2, multiplier=multiplier)
     ###### Calc Residence Time
@@ -323,12 +330,6 @@ def AnalyticalSolution():
     print('\ntR:')
     printStd(tR, tRstd)
     print('\n')
-    ###### Give out Average Transition Rates for further Analysis
-    horizontal[0] = np.array([R[1,0,0] for i in range(len(Time))]) #T_QT
-    horizontal[1] = np.array([R[0,1,0] for i in range(len(Time))]) #T_TQ
-    horizontal[2] = np.array([-R[0,0,0]-R[1,0,0] for i in range(len(Time))]) #T_CT
-    horizontal[3] = np.array([-R[1,1,0]-R[0,1,0] for i in range(len(Time))]) #T_CQ
-
     avgt0 = stats.AvgRate(start, end, TRate[0])
     stdt0 = stats.StdRate(start, end, TRate[0], avgt0)
     avgt1 = stats.AvgRate(start, end, TRate[1])
@@ -337,6 +338,43 @@ def AnalyticalSolution():
     stdt2 = stats.StdRate(start, end, TRate[2], avgt2)
     avgt3 = stats.AvgRate(start, end, TRate[3])
     stdt3 = stats.StdRate(start, end, TRate[3], avgt3)
+
+    if (writeflag != 0):
+        ## write eigenvalues, transition matrix and coefficients of analytical solution to extra file
+        ## for further analysis for particle fluxes
+        home = str(Path.home())
+        paramname = str("Single_a%st%de%s.dat" % (Angle[angle], Temp, Energy[energy]))
+        fname = home + "/lammps/" + surface + "/" + paramname
+        f = open(fname, 'w')
+        f.write("# Eigenvalues and Coefficients for Single Particle Solution\n")
+        f.write("lambda1 = %.16f\n" % l1)
+        f.write("lambda2 = %.16f\n" % l2)
+        f.write("c1 = %.16f\n" % c1)
+        f.write("c2 = %.16f\n" % c2)
+        f.write("# Elements of Transition Matrix\n")
+        f.write("R11 = %.16f\n" % R[0,0,0])
+        f.write("R12 = %.16f\n" % R[0,1,0])
+        f.write("R21 = %.16f\n" % R[1,0,0])
+        f.write("R22 = %.16f\n" % R[1,1,0])
+        f.write("N1 = %.16f\n" % N[0][fp])
+        f.write("N2 = %.16f\n" % N[1][fp])
+        f.write("# Equilibration time in ps\n")
+        f.write("te = %d\n" % t_eq)
+        f.write('# Transition rates [t_0^{-1}]\n')
+        f.write('T_QT = %.16f\n' % avgt0)
+        f.write('T_CT = %.16f\n' % avgt1)
+        f.write('T_TQ = %.16f\n' % avgt2)
+        f.write('T_CQ = %.16f\n' % avgt3)
+        f.close()
+
+
+    ###### Give out Average Transition Rates for further Analysis
+    horizontal[0] = np.array([R[1,0,0] for i in range(len(Time))]) #T_QT
+    horizontal[1] = np.array([R[0,1,0] for i in range(len(Time))]) #T_TQ
+    horizontal[2] = np.array([-R[0,0,0]-R[1,0,0] for i in range(len(Time))]) #T_CT
+    horizontal[3] = np.array([-R[1,1,0]-R[0,1,0] for i in range(len(Time))]) #T_CQ
+
+
     return N, Time2, multiplier
 
 def Write_Const_TransitionRates():
@@ -358,13 +396,20 @@ fl = open("ResTime.dat", 'a')
 fl.write("%2d %3d %.3f %.4f %.4f %.4f %.4f\n" %(int(angle), int(temperature), float(Energy[energy]), tR, tRstd, tRsimple/tR, tP))
 fl.close()
 '''
-def PlotSolution(N, Time2, TimePrime, multiplier):
+def PlotSolution(N, Time2, TimePrime, multiplier, te=0):
     global dt
+    global t_eq, num, maxps
+    te_index = int((t_eq / maxps) * num)
     if g.HLRN == 1:
         nameA = 'a'+angle+'t'+Temperature[temperature]+'e'+Energy[energy]+'HLRN'
     else:
         nameA = 'a'+angle+'t'+Temperature[temperature]+'e'+Energy[energy]
+    home = str(Path.home())
+    path = home + "/lammps/111/"
 
+    plot.WritePlot(X=TimePrime[:te_index]*0.025, Y=StateComp[0,:te_index], name=path+nameA+"InitTrapped", xlabel='# t / ps', ylabel='Population fraction', saveflag=True, header=True, action='w')
+    plot.WritePlot(X=TimePrime[:te_index]*0.025, Y=StateComp[1,:te_index], name=path+nameA+"InitQuasiTr", xlabel='# t / ps', ylabel='Population fraction', saveflag=True, header=True, action='w')
+    plot.WritePlot(X=TimePrime[:te_index]*0.025, Y=StateComp[2,:te_index], name=path+nameA+"InitCont", xlabel='# t / ps', ylabel='Population fraction', saveflag=True, header=True, action='w')
     plot.Solution(angle, temperature, Energy[energy], N, Time2, TimePrime, StateComp, Title=nameAng, pltflag=g.P_SOL, maxtime=int(g.TIMESTEPS*multiplier)*dt)
 
 def EnergyHandling():
